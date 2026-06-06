@@ -1,0 +1,141 @@
+[
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "random",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "random",
+        "description": "random",
+        "detail": "random",
+        "documentation": {}
+    },
+    {
+        "label": "discord",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "discord",
+        "description": "discord",
+        "detail": "discord",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "logging",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "logging",
+        "description": "logging",
+        "detail": "logging",
+        "documentation": {}
+    },
+    {
+        "label": "asyncio",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "asyncio",
+        "description": "asyncio",
+        "detail": "asyncio",
+        "documentation": {}
+    },
+    {
+        "label": "Fun",
+        "kind": 6,
+        "importPath": "cogs.chance",
+        "description": "cogs.chance",
+        "peekOfCode": "class Fun(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def coin(self, ctx):\n        result = random.choice(['🪙 Heads', '🪙 Tails'])\n        await ctx.reply(f'{result}')\n    @commands.command()\n    async def dice(self, ctx):\n        result = random.randint(1, 6)",
+        "detail": "cogs.chance",
+        "documentation": {}
+    },
+    {
+        "label": "General",
+        "kind": 6,
+        "importPath": "cogs.general",
+        "description": "cogs.general",
+        "peekOfCode": "class General(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def yuuka(self, ctx):\n        await ctx.send('kanpeki!')\nasync def setup(bot):\n    await bot.add_cog(General(bot))\n@commands.Cog.listener()\nasync def on_command_error(self, ctx, error):",
+        "detail": "cogs.general",
+        "documentation": {}
+    },
+    {
+        "label": "Gifs",
+        "kind": 6,
+        "importPath": "cogs.gifs",
+        "description": "cogs.gifs",
+        "peekOfCode": "class Gifs(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def czech(self, ctx):\n        await ctx.reply(file=discord.File('gifs/czech.gif'))\n    @commands.command()\n    async def dogshit(self, ctx):\n        await ctx.reply(file=discord.File('gifs/dogshit.gif'))\n    @commands.command()",
+        "detail": "cogs.gifs",
+        "documentation": {}
+    },
+    {
+        "label": "intents",
+        "kind": 5,
+        "importPath": "main",
+        "description": "main",
+        "peekOfCode": "intents = discord.Intents.default()\nintents.message_content = True\nbot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')",
+        "detail": "main",
+        "documentation": {}
+    },
+    {
+        "label": "intents.message_content",
+        "kind": 5,
+        "importPath": "main",
+        "description": "main",
+        "peekOfCode": "intents.message_content = True\nbot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')\n        await bot.load_extension('cogs.gifs')",
+        "detail": "main",
+        "documentation": {}
+    },
+    {
+        "label": "bot",
+        "kind": 5,
+        "importPath": "main",
+        "description": "main",
+        "peekOfCode": "bot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')\n        await bot.load_extension('cogs.gifs')\n        await bot.start(os.getenv('DISCORD_TOKEN'))",
+        "detail": "main",
+        "documentation": {}
+    }
+]
