@@ -12,4 +12,4 @@ class SysInfo(commands.Cog):
         await ctx.reply(f'```\n{result.stdout}\n```')
 
     async def setup(bot):
-    await bot.add_cog(SysInfo(bot))
+        await bot.add_cog(SysInfo(bot))
