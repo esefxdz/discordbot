@@ -8,7 +8,7 @@ class SysInfo(commands.Cog):
 
     @commands.command()
     async def fetch(self, ctx):
-        result = subprocess.run(['fastfetch'], capture_output=True, text=True)
+        result = subprocess.run(['fastfetch', '--nocolor', '--no-logo'], capture_output=True, text=True)
         await ctx.reply(f'```\n{result.stdout}\n```')
 
 
