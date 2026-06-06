@@ -84,6 +84,15 @@
         "documentation": {}
     },
     {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
         "label": "load_dotenv",
         "importPath": "dotenv",
         "description": "dotenv",
@@ -159,7 +168,7 @@
         "kind": 6,
         "importPath": "cogs.sysinfo",
         "description": "cogs.sysinfo",
-        "peekOfCode": "class SysInfo(commands.Cog):\n    def __init__(self,bot):\n        self.bot = bot\n    @commands.command()\n    async def fetch(self, ctx):\n        result = subprocess.run(['fastfetch', '--pipe'], capture_output=True, text=True)\n        await ctx.reply(f'```\\n{result.stdout}\\n```')\nasync def setup(bot):\n    await bot.add_cog(SysInfo(bot))",
+        "peekOfCode": "class SysInfo(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    def strip_ansi(self, text):\n        return re.sub(r'\\x1b\\[[0-9;]*[a-zA-Z]|\\[[0-9]+[A-Z]', '', text)\n    @commands.command()\n    async def fetch(self, ctx):\n        result = subprocess.run(['fastfetch', '--pipe'], capture_output=True, text=True)\n        clean = self.strip_ansi(result.stdout)\n        await ctx.reply(f'```\\n{clean}\\n```')",
         "detail": "cogs.sysinfo",
         "documentation": {}
     },
