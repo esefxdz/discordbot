@@ -40,6 +40,14 @@
         "documentation": {}
     },
     {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
         "label": "random",
         "kind": 6,
         "isExtraImport": true,
@@ -64,6 +72,15 @@
         "importPath": "io",
         "description": "io",
         "detail": "io",
+        "documentation": {}
+    },
+    {
+        "label": "subprocess",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "subprocess",
+        "description": "subprocess",
+        "detail": "subprocess",
         "documentation": {}
     },
     {
@@ -135,6 +152,15 @@
         "description": "cogs.gifs",
         "peekOfCode": "class Gifs(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    #this command lists all the gif commands, not an actualy gif command##\n    @commands.command()\n    async def gifs(self, ctx):\n        gif_commands = [f'!{cmd.name}' for cmd in self.get_commands()]\n        await ctx.reply('\\n'.join(gif_commands))\n    ######################################################################\n    @commands.command()",
         "detail": "cogs.gifs",
+        "documentation": {}
+    },
+    {
+        "label": "SysInfo",
+        "kind": 6,
+        "importPath": "cogs.sysinfo",
+        "description": "cogs.sysinfo",
+        "peekOfCode": "class SysInfo(commands.Cog):\n    def __init__(self,bot):\n        self.bot = bot\n    @commands.command()\n    async def fetch(self, ctx):\n        result = subprocess.run(['fastfetch'], capture_output=True, text=True)\n        await ctx.reply(f'```\\n{result.stdout}\\n```')",
+        "detail": "cogs.sysinfo",
         "documentation": {}
     },
     {
