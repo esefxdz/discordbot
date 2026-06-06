@@ -159,7 +159,7 @@
         "kind": 6,
         "importPath": "cogs.sysinfo",
         "description": "cogs.sysinfo",
-        "peekOfCode": "class SysInfo(commands.Cog):\n    def __init__(self,bot):\n        self.bot = bot\n    @commands.command()\n    async def fetch(self, ctx):\n        result = subprocess.run(['fastfetch'], capture_output=True, text=True)\n        await ctx.reply(f'```\\n{result.stdout}\\n```')\n    async def setup(bot):\n        await bot.add_cog(SysInfo(bot))",
+        "peekOfCode": "class SysInfo(commands.Cog):\n    def __init__(self,bot):\n        self.bot = bot\n    @commands.command()\n    async def fetch(self, ctx):\n        result = subprocess.run(['fastfetch'], capture_output=True, text=True)\n        await ctx.reply(f'```\\n{result.stdout}\\n```')\nasync def setup(bot):\n    await bot.add_cog(SysInfo(bot))",
         "detail": "cogs.sysinfo",
         "documentation": {}
     },
