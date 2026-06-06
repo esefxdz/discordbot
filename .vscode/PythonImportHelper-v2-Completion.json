@@ -32,6 +32,14 @@
         "documentation": {}
     },
     {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
         "label": "random",
         "kind": 6,
         "isExtraImport": true,
@@ -47,6 +55,15 @@
         "importPath": "discord",
         "description": "discord",
         "detail": "discord",
+        "documentation": {}
+    },
+    {
+        "label": "io",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "io",
+        "description": "io",
+        "detail": "io",
         "documentation": {}
     },
     {
@@ -94,6 +111,15 @@
         "documentation": {}
     },
     {
+        "label": "Copypasta",
+        "kind": 6,
+        "importPath": "cogs.copypasta",
+        "description": "cogs.copypasta",
+        "peekOfCode": "class Copypasta(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def yuukapasta(self, ctx):\n        pasta = (\"\"\"Since Yuuka is the paragon of human virtue without equal past or present, she is most resplendent in love, tributes and accolades. Waking or sleeping, I must not forget Yuuka’s great boon and in order to return her favour by day and by night, I should only think of fulfilling my loyalty.\nWho is Yuuka?\nFor the blind, she is their vision. For the deaf, she is their music. For the mute, she is their voice. For the anosmiac, she is their aroma. For the numb, she is their feeling. For the atrophied, she is their muscle.\nFor the starved, she is their sustenance. For the thirsty, she is their water. For the exhausted, she is their energy.\nFor the depressed, she is their happiness. For the disillusioned, she is their hope. For the pessimistic, she is their optimism.",
+        "detail": "cogs.copypasta",
+        "documentation": {}
+    },
+    {
         "label": "General",
         "kind": 6,
         "importPath": "cogs.general",
@@ -107,7 +133,7 @@
         "kind": 6,
         "importPath": "cogs.gifs",
         "description": "cogs.gifs",
-        "peekOfCode": "class Gifs(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def czech(self, ctx):\n        await ctx.reply(file=discord.File('gifs/czech.gif'))\n    @commands.command()\n    async def dogshit(self, ctx):\n        await ctx.reply(file=discord.File('gifs/dogshit.gif'))\n    @commands.command()",
+        "peekOfCode": "class Gifs(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    #this command lists all the gif commands, not an actualy gif command##\n    @commands.command()\n    async def gifs(self, ctx):\n        gif_commands = [f'!{cmd.name}' for cmd in self.get_commands()]\n        await ctx.reply('\\n'.join(gif_commands))\n    ######################################################################\n    @commands.command()",
         "detail": "cogs.gifs",
         "documentation": {}
     },
@@ -134,7 +160,7 @@
         "kind": 5,
         "importPath": "main",
         "description": "main",
-        "peekOfCode": "bot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')\n        await bot.load_extension('cogs.gifs')\n        await bot.start(os.getenv('DISCORD_TOKEN'))",
+        "peekOfCode": "bot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')\n        await bot.load_extension('cogs.gifs')\n        await bot.load_extension('cogs.copypasta')",
         "detail": "main",
         "documentation": {}
     }

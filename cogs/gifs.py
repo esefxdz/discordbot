@@ -6,6 +6,13 @@ class Gifs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    #this command lists all the gif commands, not an actualy gif command##
+    @commands.command()
+    async def gifs(self, ctx):
+        gif_commands = [f'!{cmd.name}' for cmd in self.get_commands()]
+        await ctx.reply('\n'.join(gif_commands))
+    ######################################################################
+
     @commands.command()
     async def czech(self, ctx):
         await ctx.reply(file=discord.File('gifs/czech.gif'))
