@@ -12,7 +12,7 @@ class SysInfo(commands.Cog):
 
     @commands.command()
     async def fetch(self, ctx):
-        result = subprocess.run(['fastfetch', '--pipe'], capture_output=True, text=True)
+        result = subprocess.run(['fastfetch', '--pipe', '--logo', 'none'], capture_output=True, text=True)
         clean = self.strip_ansi(result.stdout)
         await ctx.reply(f'```\n{clean}\n```')
 
