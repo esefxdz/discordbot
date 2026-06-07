@@ -110,12 +110,12 @@
         "documentation": {}
     },
     {
-        "label": "music",
+        "label": "wavelink",
         "kind": 6,
         "isExtraImport": true,
-        "importPath": "music",
-        "description": "music",
-        "detail": "music",
+        "importPath": "wavelink",
+        "description": "wavelink",
+        "detail": "wavelink",
         "documentation": {}
     },
     {
