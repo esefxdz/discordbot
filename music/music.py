@@ -1,4 +1,4 @@
-import wavelink
+import music
 import discord
 from discord.ext import commands
 
@@ -9,8 +9,8 @@ class Music(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        node = wavelink.Node(uri='http://127.0.0.1:2333', password='yuukabot')
-        await wavelink.Pool.connect(nodes=[node], client=self.bot)
+        node = music.Node(uri='http://127.0.0.1:2333', password='yuukabot')
+        await music.Pool.connect(nodes=[node], client=self.bot)
         print('✅ Wavelink connected to Lavalink')
 
     @commands.command()
@@ -19,11 +19,11 @@ class Music(commands.Cog):
             return await ctx.reply('you need to be in a voice channel!')
         
         if not ctx.voice_client:
-            vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+            vc: music.Player = await ctx.author.voice.channel.connect(cls=music.Player)
         else:
-            vc: wavelink.Player = ctx.voice_client
+            vc: music.Player = ctx.voice_client
 
-        tracks = await wavelink.Playable.search(query)
+        tracks = await music.Playable.search(query)
         if not tracks:
             return await ctx.reply('nothing found!')
 
