@@ -119,6 +119,23 @@
         "documentation": {}
     },
     {
+        "label": "asyncio",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "asyncio",
+        "description": "asyncio",
+        "detail": "asyncio",
+        "documentation": {}
+    },
+    {
+        "label": "deque",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
         "label": "load_dotenv",
         "importPath": "dotenv",
         "description": "dotenv",
@@ -142,15 +159,6 @@
         "importPath": "logging",
         "description": "logging",
         "detail": "logging",
-        "documentation": {}
-    },
-    {
-        "label": "asyncio",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "asyncio",
-        "description": "asyncio",
-        "detail": "asyncio",
         "documentation": {}
     },
     {
@@ -199,11 +207,74 @@
         "documentation": {}
     },
     {
+        "label": "GuildState",
+        "kind": 6,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "class GuildState:\n    def __init__(self):\n        self.queue:    deque              = deque()\n        self.history:  list               = []   # last 10 tracks\n        self.loop:     int                = LOOP_OFF\n        self.autoplay: bool               = False\n        self.current:  wavelink.Playable | None = None\n    def push_history(self, track: wavelink.Playable):\n        self.history.insert(0, track)\n        if len(self.history) > 10:",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
         "label": "Music",
         "kind": 6,
         "importPath": "music.music",
         "description": "music.music",
-        "peekOfCode": "class Music(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.Cog.listener()\n    async def on_ready(self):\n        node = music.Node(uri='http://127.0.0.1:2333', password='yuukabot')\n        await music.Pool.connect(nodes=[node], client=self.bot)\n        print('✅ Wavelink connected to Lavalink')\n    @commands.command()\n    async def play(self, ctx, *, query: str):",
+        "peekOfCode": "class Music(commands.Cog):\n    def __init__(self, bot: commands.Bot):\n        self.bot    = bot\n        self._states: dict[int, GuildState] = {}\n    def state(self, guild_id: int) -> GuildState:\n        if guild_id not in self._states:\n            self._states[guild_id] = GuildState()\n        return self._states[guild_id]\n    # ── connect lavalink ─────────────────────────────────────────────────────\n    @commands.Cog.listener()",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "fmt_duration",
+        "kind": 2,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "def fmt_duration(ms: int) -> str:\n    s = ms // 1000\n    m, s = divmod(s, 60)\n    h, m = divmod(m, 60)\n    return f\"{h}:{m:02}:{s:02}\" if h else f\"{m}:{s:02}\"\ndef progress_bar(position_ms: int, duration_ms: int, width: int = 14) -> str:\n    if duration_ms == 0:\n        return \"▬\" * width\n    pct   = min(position_ms / duration_ms, 1.0)\n    filled = int(pct * width)",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "progress_bar",
+        "kind": 2,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "def progress_bar(position_ms: int, duration_ms: int, width: int = 14) -> str:\n    if duration_ms == 0:\n        return \"▬\" * width\n    pct   = min(position_ms / duration_ms, 1.0)\n    filled = int(pct * width)\n    return \"▬\" * filled + \"🔘\" + \"▬\" * (width - filled)\ndef is_dj():\n    \"\"\"Soft DJ check — allows anyone to use info/play, restricts control commands.\"\"\"\n    async def predicate(ctx: commands.Context):\n        if any(r.name.lower() == \"dj\" for r in ctx.author.roles):",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "is_dj",
+        "kind": 2,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "def is_dj():\n    \"\"\"Soft DJ check — allows anyone to use info/play, restricts control commands.\"\"\"\n    async def predicate(ctx: commands.Context):\n        if any(r.name.lower() == \"dj\" for r in ctx.author.roles):\n            return True\n        await ctx.reply(\n            embed=discord.Embed(\n                description=\"🎧 You need the **DJ** role to use this command.\",\n                color=C_ERR,\n            )",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "LOOP_TRACK",
+        "kind": 5,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "LOOP_TRACK = 1\nLOOP_QUEUE = 2\nLOOP_LABEL = {\n    LOOP_OFF:   \"Off\",\n    LOOP_TRACK: \"🔂 Track\",\n    LOOP_QUEUE: \"🔁 Queue\",\n}\n# ── per-guild state ──────────────────────────────────────────────────────────\nclass GuildState:\n    def __init__(self):",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "LOOP_QUEUE",
+        "kind": 5,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "LOOP_QUEUE = 2\nLOOP_LABEL = {\n    LOOP_OFF:   \"Off\",\n    LOOP_TRACK: \"🔂 Track\",\n    LOOP_QUEUE: \"🔁 Queue\",\n}\n# ── per-guild state ──────────────────────────────────────────────────────────\nclass GuildState:\n    def __init__(self):\n        self.queue:    deque              = deque()",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "LOOP_LABEL",
+        "kind": 5,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "LOOP_LABEL = {\n    LOOP_OFF:   \"Off\",\n    LOOP_TRACK: \"🔂 Track\",\n    LOOP_QUEUE: \"🔁 Queue\",\n}\n# ── per-guild state ──────────────────────────────────────────────────────────\nclass GuildState:\n    def __init__(self):\n        self.queue:    deque              = deque()\n        self.history:  list               = []   # last 10 tracks",
         "detail": "music.music",
         "documentation": {}
     },
