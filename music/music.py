@@ -124,6 +124,7 @@ class Music(commands.Cog):
         if not vc:
             vc = await ctx.author.voice.channel.connect(cls=wavelink.Player)
             vc.autoplay = wavelink.AutoPlayMode.disabled
+            vc.inactive_timeout = None
 
         st = self.state(ctx.guild.id)
 
