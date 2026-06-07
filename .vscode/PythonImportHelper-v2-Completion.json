@@ -110,12 +110,12 @@
         "documentation": {}
     },
     {
-        "label": "wavelink",
+        "label": "music",
         "kind": 6,
         "isExtraImport": true,
-        "importPath": "wavelink",
-        "description": "wavelink",
-        "detail": "wavelink",
+        "importPath": "music",
+        "description": "music",
+        "detail": "music",
         "documentation": {}
     },
     {
@@ -203,7 +203,7 @@
         "kind": 6,
         "importPath": "music.music",
         "description": "music.music",
-        "peekOfCode": "class Music(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.Cog.listener()\n    async def on_ready(self):\n        node = wavelink.Node(uri='http://127.0.0.1:2333', password='yuukabot')\n        await wavelink.Pool.connect(nodes=[node], client=self.bot)\n        print('✅ Wavelink connected to Lavalink')\n    @commands.command()\n    async def play(self, ctx, *, query: str):",
+        "peekOfCode": "class Music(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.Cog.listener()\n    async def on_ready(self):\n        node = music.Node(uri='http://127.0.0.1:2333', password='yuukabot')\n        await music.Pool.connect(nodes=[node], client=self.bot)\n        print('✅ Wavelink connected to Lavalink')\n    @commands.command()\n    async def play(self, ctx, *, query: str):",
         "detail": "music.music",
         "documentation": {}
     },
