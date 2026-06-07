@@ -7,6 +7,13 @@ class Copypasta(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # this command lists all the copypasta commands, not an actualy copypasta command##
+    @commands.command()
+    async def copypasta(self, ctx):
+        pasta_commands = [f'!{cmd.name}' for cmd in self.get_commands() if cmd.name != 'copypasta']
+        await ctx.reply('\n'.join(sorted(pasta_commands)))
+    ######################################################################
+
     @commands.command()
     async def yuukapasta(self, ctx):
         pasta = ("""Since Yuuka is the paragon of human virtue without equal past or present, she is most resplendent in love, tributes and accolades. Waking or sleeping, I must not forget Yuuka’s great boon and in order to return her favour by day and by night, I should only think of fulfilling my loyalty.

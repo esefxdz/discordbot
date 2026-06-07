@@ -83,6 +83,15 @@
         "documentation": {}
     },
     {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
         "label": "subprocess",
         "kind": 6,
         "isExtraImport": true,
@@ -144,15 +153,6 @@
         "documentation": {}
     },
     {
-        "label": "os",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "os",
-        "description": "os",
-        "detail": "os",
-        "documentation": {}
-    },
-    {
         "label": "logging",
         "kind": 6,
         "isExtraImport": true,
@@ -166,7 +166,7 @@
         "kind": 6,
         "importPath": "cogs.chance",
         "description": "cogs.chance",
-        "peekOfCode": "class Fun(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def coin(self, ctx):\n        result = random.choice(['🪙 Heads', '🪙 Tails'])\n        await ctx.reply(f'{result}')\n    @commands.command()\n    async def dice(self, ctx):\n        result = random.randint(1, 6)",
+        "peekOfCode": "class Fun(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    # this command lists all the fun commands, not an actualy fun command##\n    @commands.command()\n    async def fun(self, ctx):\n        fun_commands = [f'!{cmd.name}' for cmd in self.get_commands() if cmd.name != 'fun']\n        await ctx.reply('\\n'.join(sorted(fun_commands)))\n    ######################################################################\n    @commands.command()",
         "detail": "cogs.chance",
         "documentation": {}
     },
@@ -175,7 +175,7 @@
         "kind": 6,
         "importPath": "cogs.copypasta",
         "description": "cogs.copypasta",
-        "peekOfCode": "class Copypasta(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def yuukapasta(self, ctx):\n        pasta = (\"\"\"Since Yuuka is the paragon of human virtue without equal past or present, she is most resplendent in love, tributes and accolades. Waking or sleeping, I must not forget Yuuka’s great boon and in order to return her favour by day and by night, I should only think of fulfilling my loyalty.\nWho is Yuuka?\nFor the blind, she is their vision. For the deaf, she is their music. For the mute, she is their voice. For the anosmiac, she is their aroma. For the numb, she is their feeling. For the atrophied, she is their muscle.\nFor the starved, she is their sustenance. For the thirsty, she is their water. For the exhausted, she is their energy.\nFor the depressed, she is their happiness. For the disillusioned, she is their hope. For the pessimistic, she is their optimism.",
+        "peekOfCode": "class Copypasta(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    # this command lists all the copypasta commands, not an actualy copypasta command##\n    @commands.command()\n    async def copypasta(self, ctx):\n        pasta_commands = [f'!{cmd.name}' for cmd in self.get_commands() if cmd.name != 'copypasta']\n        await ctx.reply('\\n'.join(sorted(pasta_commands)))\n    ######################################################################\n    @commands.command()",
         "detail": "cogs.copypasta",
         "documentation": {}
     },
@@ -193,7 +193,7 @@
         "kind": 6,
         "importPath": "cogs.gifs",
         "description": "cogs.gifs",
-        "peekOfCode": "class Gifs(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    #this command lists all the gif commands, not an actualy gif command##\n    @commands.command()\n    async def gifs(self, ctx):\n        gif_commands = [f'!{cmd.name}' for cmd in self.get_commands()]\n        await ctx.reply('\\n'.join(gif_commands))\n    ######################################################################\n    @commands.command()",
+        "peekOfCode": "class Gifs(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n        self._load_gif_commands()\n    def _load_gif_commands(self):\n        if not os.path.exists('gifs'):\n            return\n        for filename in os.listdir('gifs'):\n            if filename.endswith('.gif'):\n                name = filename[:-4]  # strip .gif",
         "detail": "cogs.gifs",
         "documentation": {}
     },

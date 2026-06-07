@@ -6,6 +6,13 @@ class Fun(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # this command lists all the fun commands, not an actualy fun command##
+    @commands.command()
+    async def fun(self, ctx):
+        fun_commands = [f'!{cmd.name}' for cmd in self.get_commands() if cmd.name != 'fun']
+        await ctx.reply('\n'.join(sorted(fun_commands)))
+    ######################################################################
+
     @commands.command()
     async def coin(self, ctx):
         result = random.choice(['🪙 Heads', '🪙 Tails'])
