@@ -1,4 +1,4 @@
-import wavelink
+import wavelink as music
 import discord
 from discord.ext import commands
 
