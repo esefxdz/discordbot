@@ -23,6 +23,7 @@ async def main():
         await bot.load_extension('cogs.gifs')
         await bot.load_extension('cogs.copypasta')
         await bot.load_extension('cogs.sysinfo')
+        await bot.load_extension('cogs.wavelink.music')
         await bot.start(os.getenv('DISCORD_TOKEN'))
 
 logging.basicConfig(level=logging.INFO)

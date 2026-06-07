@@ -48,6 +48,14 @@
         "documentation": {}
     },
     {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
         "label": "random",
         "kind": 6,
         "isExtraImport": true,
@@ -99,6 +107,15 @@
         "importPath": "psutil",
         "description": "psutil",
         "detail": "psutil",
+        "documentation": {}
+    },
+    {
+        "label": "wavelink",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "wavelink",
+        "description": "wavelink",
+        "detail": "wavelink",
         "documentation": {}
     },
     {
@@ -179,6 +196,15 @@
         "description": "cogs.sysinfo",
         "peekOfCode": "class SysInfo(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    def strip_ansi(self, text):\n        return re.sub(r'\\x1b\\[[0-9;]*[a-zA-Z]|\\[[0-9]+[A-Z]', '', text)\n    #this command lists all the sysinfo commands, not an actualy sysinfo command##\n    @commands.command()\n    async def sysinfo(self, ctx):\n        sys_commands = [f'!{cmd.name}' for cmd in self.get_commands()]\n        await ctx.reply('\\n'.join(sys_commands))",
         "detail": "cogs.sysinfo",
+        "documentation": {}
+    },
+    {
+        "label": "Music",
+        "kind": 6,
+        "importPath": "wavelink.music",
+        "description": "wavelink.music",
+        "peekOfCode": "class Music(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.Cog.listener()\n    async def on_ready(self):\n        node = wavelink.Node(uri='http://127.0.0.1:2333', password='yuukabot')\n        await wavelink.Pool.connect(nodes=[node], client=self.bot)\n        print('✅ Wavelink connected to Lavalink')\n    @commands.command()\n    async def play(self, ctx, *, query: str):",
+        "detail": "wavelink.music",
         "documentation": {}
     },
     {
