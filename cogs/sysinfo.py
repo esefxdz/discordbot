@@ -84,6 +84,19 @@ class SysInfo(commands.Cog):
         disk = psutil.disk_usage('/').percent
         reply = f'CPU: {cpu}% | RAM: {ram}% | Disk: {disk}%'
         await ctx.reply(reply)
+    
+    #this command fetches the current player count for Strinova from the Steam API
+    #it's a game i play and want to show off to my friends, not an actual sysinfo command##
+    #i know this is a bit of a weird place for it but i dont want to make a whole new cog just for one command
+    #holy shit vscode autocomplete knew exactly what i was gonna say wtf;?
+    @commands.command()
+    async def strinova(self, ctx):
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=1282270') as r:
+                data = await r.json()
+                count = data['response']['player_count']
+                await ctx.reply(f'🎮 Strinova — {count:,} players online right now')
 
 async def setup(bot):
     await bot.add_cog(SysInfo(bot))
