@@ -143,7 +143,7 @@ class Music(commands.Cog):
                 st.queue.append(t)
 
             if not vc.playing and not vc.paused and st.queue:
-                t.current = st.queue.popleft()
+                st.current = st.queue.popleft()
                 await vc.play(st.current)
 
             embed = discord.Embed(
