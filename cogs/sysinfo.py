@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 import re
 import psutil
+import aiohttp
 
 class SysInfo(commands.Cog):
     def __init__(self, bot):
@@ -91,7 +92,6 @@ class SysInfo(commands.Cog):
     #holy shit vscode autocomplete knew exactly what i was gonna say wtf;?
     @commands.command()
     async def strinova(self, ctx):
-        import aiohttp
         async with aiohttp.ClientSession() as session:
             async with session.get('https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=1282270') as r:
                 data = await r.json()
