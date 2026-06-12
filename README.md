@@ -21,4 +21,4 @@ Personal Discord bot running on my Arch Linux laptop. Named after Hayase Yuuka.
 - `!music` — full music command list
 - `!sysinfo` — full sysinfo command list
 - `!gifs` — full gif list
-- `!help` — everything else
+- `!copypasta` — full copypasta list
