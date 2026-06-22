@@ -97,15 +97,6 @@ class SysInfo(commands.Cog):
                 count = data['response']['player_count']
                 await ctx.reply(f'🎮 Strinova — {count:,} players online right now')
 
-    #this is unrelated, strinova player count tracker
-    #i just couldnt be assed with it lol
-    @commands.command()
-    async def strinova(self, ctx):
-        async with aiohttp.ClientSession() as session:
-            async with session.get('https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=1282270') as r:
-                data = await r.json()
-                count = data['response']['player_count']
-                await ctx.reply(f'🎮 Strinova — {count:,} players online right now')
 
 async def setup(bot):
     await bot.add_cog(SysInfo(bot))

@@ -14,6 +14,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
+bot.remove_command('help')
 
 forwarder = TelegramForwarder(
     token=os.getenv('TELEGRAM_BOT_TOKEN'),
