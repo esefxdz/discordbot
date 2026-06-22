@@ -20,7 +20,7 @@ class StatChannel(commands.Cog):
                     count = data['response']['player_count']
             channel = self.bot.get_channel(self.channel_id)
             if channel:
-                await channel.edit(name=f'Strinova Players: {count:,}')
+                await channel.edit(name=f'Strinova Players From Steam: {count:,}')
         except Exception as e:
             print(f'stat channel update failed: {e}')
 
