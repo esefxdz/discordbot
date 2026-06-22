@@ -6,6 +6,7 @@ import logging
 import asyncio
 
 from tgbridge.forwarder import TelegramForwarder
+from twitterbridge.rss import TwitterRSSForwarder
 
 load_dotenv('credentials.env')
 
@@ -20,10 +21,16 @@ forwarder = TelegramForwarder(
     webhook_url=os.getenv('DISCORD_WEBHOOK_URL'),
 )
 
+twitter = TwitterRSSForwarder(
+    rss_url=os.getenv('TWITTER_RSS_URL'),
+    webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK'),
+)
+
 @bot.event
 async def on_ready():
     print(f'✅ {bot.user} is online!')
     asyncio.create_task(forwarder.start())
+    asyncio.create_task(twitter.start())
 
 async def main():
     async with bot:
@@ -38,6 +45,7 @@ async def main():
             await bot.start(os.getenv('DISCORD_TOKEN'))
         finally:
             await forwarder.stop()
+            twitter.stop()
 
 logging.basicConfig(level=logging.INFO)
 asyncio.run(main())
