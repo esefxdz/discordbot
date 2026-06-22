@@ -42,7 +42,12 @@ class TwitterRSSForwarder:
             f.write(self.last_guid or '')
 
     async def _poll(self):
-        feed = feedparser.parse(self.rss_url)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(self.rss_url) as resp:
+                text = await resp.text()
+
+        feed = feedparser.parse(text)
 
         if feed.bozo and not feed.entries:
             print(f'twitter rss feed error: {feed.bozo_exception}')

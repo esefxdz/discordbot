@@ -19,7 +19,8 @@ class General(commands.Cog):
             return await ctx.reply('rss url not configured.')
             
         try:
-            async with aiohttp.ClientSession() as session:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.get(rss_url) as resp:
                     text = await resp.text()
                     
