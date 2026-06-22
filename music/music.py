@@ -124,7 +124,8 @@ class Music(commands.Cog):
         if not vc:
             vc = await ctx.author.voice.channel.connect(cls=wavelink.Player)
             vc.autoplay = wavelink.AutoPlayMode.disabled
-            vc.inactive_timeout = None        
+            vc.inactive_timeout = None
+            vc.inactive_timeout = None
 
         st = self.state(ctx.guild.id)
 
@@ -141,10 +142,9 @@ class Music(commands.Cog):
             for t in tracks:
                 t.extras = {"requester": str(ctx.author)}
                 st.queue.append(t)
-
-            if not vc.playing and not vc.paused and st.queue:
-                st.current = st.queue.popleft()
-                await vc.play(st.current)
+                if not vc.playing and not vc.paused and st.queue:
+                    st.current = st.queue.popleft()
+                    await vc.play(st.current)
 
             embed = discord.Embed(
                 title="📋  Playlist Queued",

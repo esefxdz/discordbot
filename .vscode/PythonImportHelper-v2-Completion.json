@@ -1,0 +1,317 @@
+[
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "commands",
+        "importPath": "discord.ext",
+        "description": "discord.ext",
+        "isExtraImport": true,
+        "detail": "discord.ext",
+        "documentation": {}
+    },
+    {
+        "label": "random",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "random",
+        "description": "random",
+        "detail": "random",
+        "documentation": {}
+    },
+    {
+        "label": "discord",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "discord",
+        "description": "discord",
+        "detail": "discord",
+        "documentation": {}
+    },
+    {
+        "label": "io",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "io",
+        "description": "io",
+        "detail": "io",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "subprocess",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "subprocess",
+        "description": "subprocess",
+        "detail": "subprocess",
+        "documentation": {}
+    },
+    {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "psutil",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "psutil",
+        "description": "psutil",
+        "detail": "psutil",
+        "documentation": {}
+    },
+    {
+        "label": "aiohttp",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "aiohttp",
+        "description": "aiohttp",
+        "detail": "aiohttp",
+        "documentation": {}
+    },
+    {
+        "label": "wavelink",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "wavelink",
+        "description": "wavelink",
+        "detail": "wavelink",
+        "documentation": {}
+    },
+    {
+        "label": "asyncio",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "asyncio",
+        "description": "asyncio",
+        "detail": "asyncio",
+        "documentation": {}
+    },
+    {
+        "label": "deque",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "logging",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "logging",
+        "description": "logging",
+        "detail": "logging",
+        "documentation": {}
+    },
+    {
+        "label": "Fun",
+        "kind": 6,
+        "importPath": "cogs.chance",
+        "description": "cogs.chance",
+        "peekOfCode": "class Fun(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    # this command lists all the fun commands, not an actualy fun command##\n    @commands.command()\n    async def fun(self, ctx):\n        fun_commands = [f'!{cmd.name}' for cmd in self.get_commands() if cmd.name != 'fun']\n        await ctx.reply('\\n'.join(sorted(fun_commands)))\n    ######################################################################\n    @commands.command()",
+        "detail": "cogs.chance",
+        "documentation": {}
+    },
+    {
+        "label": "Copypasta",
+        "kind": 6,
+        "importPath": "cogs.copypasta",
+        "description": "cogs.copypasta",
+        "peekOfCode": "class Copypasta(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    # this command lists all the copypasta commands, not an actualy copypasta command##\n    @commands.command()\n    async def copypasta(self, ctx):\n        pasta_commands = [f'!{cmd.name}' for cmd in self.get_commands() if cmd.name != 'copypasta']\n        await ctx.reply('\\n'.join(sorted(pasta_commands)))\n    ######################################################################\n    @commands.command()",
+        "detail": "cogs.copypasta",
+        "documentation": {}
+    },
+    {
+        "label": "General",
+        "kind": 6,
+        "importPath": "cogs.general",
+        "description": "cogs.general",
+        "peekOfCode": "class General(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    @commands.command()\n    async def yuuka(self, ctx):\n        await ctx.send('kanpeki!')\nasync def setup(bot):\n    await bot.add_cog(General(bot))\n@commands.Cog.listener()\nasync def on_command_error(self, ctx, error):",
+        "detail": "cogs.general",
+        "documentation": {}
+    },
+    {
+        "label": "Gifs",
+        "kind": 6,
+        "importPath": "cogs.gifs",
+        "description": "cogs.gifs",
+        "peekOfCode": "class Gifs(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n        self._gif_names = []\n        self._load_gif_commands()\n    def _load_gif_commands(self):\n        if not os.path.exists('gifs'):\n            return\n        for filename in os.listdir('gifs'):\n            if filename.endswith('.gif'):",
+        "detail": "cogs.gifs",
+        "documentation": {}
+    },
+    {
+        "label": "SysInfo",
+        "kind": 6,
+        "importPath": "cogs.sysinfo",
+        "description": "cogs.sysinfo",
+        "peekOfCode": "class SysInfo(commands.Cog):\n    def __init__(self, bot):\n        self.bot = bot\n    def strip_ansi(self, text):\n        return re.sub(r'\\x1b\\[[0-9;]*[a-zA-Z]|\\[[0-9]+[A-Z]', '', text)\n    #this command lists all the sysinfo commands, not an actualy sysinfo command##\n    @commands.command()\n    async def sysinfo(self, ctx):\n        sys_commands = [f'!{cmd.name}' for cmd in self.get_commands()]\n        await ctx.reply('\\n'.join(sys_commands))",
+        "detail": "cogs.sysinfo",
+        "documentation": {}
+    },
+    {
+        "label": "GuildState",
+        "kind": 6,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "class GuildState:\n    def __init__(self):\n        self.queue:    deque              = deque()\n        self.history:  list               = []   # last 10 tracks\n        self.loop:     int                = LOOP_OFF\n        self.autoplay: bool               = False\n        self.current:  wavelink.Playable | None = None\n    def push_history(self, track: wavelink.Playable):\n        self.history.insert(0, track)\n        if len(self.history) > 10:",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "Music",
+        "kind": 6,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "class Music(commands.Cog):\n    def __init__(self, bot: commands.Bot):\n        self.bot    = bot\n        self._states: dict[int, GuildState] = {}\n    def state(self, guild_id: int) -> GuildState:\n        if guild_id not in self._states:\n            self._states[guild_id] = GuildState()\n        return self._states[guild_id]\n    # ── connect lavalink ─────────────────────────────────────────────────────\n    @commands.Cog.listener()",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "fmt_duration",
+        "kind": 2,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "def fmt_duration(ms: int) -> str:\n    s = ms // 1000\n    m, s = divmod(s, 60)\n    h, m = divmod(m, 60)\n    return f\"{h}:{m:02}:{s:02}\" if h else f\"{m}:{s:02}\"\ndef progress_bar(position_ms: int, duration_ms: int, width: int = 14) -> str:\n    if duration_ms == 0:\n        return \"▬\" * width\n    pct   = min(position_ms / duration_ms, 1.0)\n    filled = int(pct * width)",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "progress_bar",
+        "kind": 2,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "def progress_bar(position_ms: int, duration_ms: int, width: int = 14) -> str:\n    if duration_ms == 0:\n        return \"▬\" * width\n    pct   = min(position_ms / duration_ms, 1.0)\n    filled = int(pct * width)\n    return \"▬\" * filled + \"🔘\" + \"▬\" * (width - filled)\ndef is_dj():\n    \"\"\"Soft DJ check — allows anyone to use info/play, restricts control commands.\"\"\"\n    async def predicate(ctx: commands.Context):\n        if any(r.name.lower() == \"dj\" for r in ctx.author.roles):",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "is_dj",
+        "kind": 2,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "def is_dj():\n    \"\"\"Soft DJ check — allows anyone to use info/play, restricts control commands.\"\"\"\n    async def predicate(ctx: commands.Context):\n        if any(r.name.lower() == \"dj\" for r in ctx.author.roles):\n            return True\n        await ctx.reply(\n            embed=discord.Embed(\n                description=\"🎧 You need the **DJ** role to use this command.\",\n                color=C_ERR,\n            )",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "LOOP_TRACK",
+        "kind": 5,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "LOOP_TRACK = 1\nLOOP_QUEUE = 2\nLOOP_LABEL = {\n    LOOP_OFF:   \"Off\",\n    LOOP_TRACK: \"🔂 Track\",\n    LOOP_QUEUE: \"🔁 Queue\",\n}\n# ── per-guild state ──────────────────────────────────────────────────────────\nclass GuildState:\n    def __init__(self):",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "LOOP_QUEUE",
+        "kind": 5,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "LOOP_QUEUE = 2\nLOOP_LABEL = {\n    LOOP_OFF:   \"Off\",\n    LOOP_TRACK: \"🔂 Track\",\n    LOOP_QUEUE: \"🔁 Queue\",\n}\n# ── per-guild state ──────────────────────────────────────────────────────────\nclass GuildState:\n    def __init__(self):\n        self.queue:    deque              = deque()",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "LOOP_LABEL",
+        "kind": 5,
+        "importPath": "music.music",
+        "description": "music.music",
+        "peekOfCode": "LOOP_LABEL = {\n    LOOP_OFF:   \"Off\",\n    LOOP_TRACK: \"🔂 Track\",\n    LOOP_QUEUE: \"🔁 Queue\",\n}\n# ── per-guild state ──────────────────────────────────────────────────────────\nclass GuildState:\n    def __init__(self):\n        self.queue:    deque              = deque()\n        self.history:  list               = []   # last 10 tracks",
+        "detail": "music.music",
+        "documentation": {}
+    },
+    {
+        "label": "intents",
+        "kind": 5,
+        "importPath": "main",
+        "description": "main",
+        "peekOfCode": "intents = discord.Intents.default()\nintents.message_content = True\nbot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')",
+        "detail": "main",
+        "documentation": {}
+    },
+    {
+        "label": "intents.message_content",
+        "kind": 5,
+        "importPath": "main",
+        "description": "main",
+        "peekOfCode": "intents.message_content = True\nbot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')\n        await bot.load_extension('cogs.gifs')",
+        "detail": "main",
+        "documentation": {}
+    },
+    {
+        "label": "bot",
+        "kind": 5,
+        "importPath": "main",
+        "description": "main",
+        "peekOfCode": "bot = commands.Bot(command_prefix='!', intents=intents)\n@bot.event\nasync def on_ready():\n    print(f'✅ {bot.user} is online!')\nasync def main():\n    async with bot:\n        await bot.load_extension('cogs.general')\n        await bot.load_extension('cogs.chance')\n        await bot.load_extension('cogs.gifs')\n        await bot.load_extension('cogs.copypasta')",
+        "detail": "main",
+        "documentation": {}
+    }
+]
