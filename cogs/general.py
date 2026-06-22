@@ -28,14 +28,17 @@ class General(commands.Cog):
             if not feed.entries:
                 return await ctx.reply('no tweets found.')
                 
-            entry = feed.entries[0]
-            title = entry.get('title', '')
-            link = entry.get('link', '')
-            
-            if 'nitter.net' in link:
-                link = link.replace('nitter.net', 'twitter.com').replace('#m', '')
+            response = "**Latest 5 Leaks:**\n"
+            for entry in feed.entries[:5]:
+                title = entry.get('title', '')
+                link = entry.get('link', '')
                 
-            await ctx.reply(f'**Latest Leak:**\n{title}\n{link}')
+                if 'nitter.net' in link:
+                    link = link.replace('nitter.net', 'twitter.com').replace('#m', '')
+                    
+                response += f"\n{title}\n{link}\n"
+                
+            await ctx.reply(response[:2000])
         except Exception as e:
             await ctx.reply(f'failed to fetch leaks: {e}')
 
