@@ -4,7 +4,7 @@ import asyncio
 import aiohttp
 import feedparser
 
-POLL_INTERVAL = 43200  # 12 hours
+POLL_INTERVAL = 1800  # 30 minutes
 GUID_FILE = 'data/last_tweet.txt'
 
 class TwitterRSSForwarder:
