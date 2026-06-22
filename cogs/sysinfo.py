@@ -1,5 +1,4 @@
 import subprocess
-import discord
 from discord.ext import commands
 import re
 import psutil
@@ -90,6 +89,16 @@ class SysInfo(commands.Cog):
     #it's a game i play and want to show off to my friends, not an actual sysinfo command##
     #i know this is a bit of a weird place for it but i dont want to make a whole new cog just for one command
     #holy shit vscode autocomplete knew exactly what i was gonna say wtf;?
+    @commands.command()
+    async def strinova(self, ctx):
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=1282270') as r:
+                data = await r.json()
+                count = data['response']['player_count']
+                await ctx.reply(f'🎮 Strinova — {count:,} players online right now')
+
+    #this is unrelated, strinova player count tracker
+    #i just couldnt be assed with it lol
     @commands.command()
     async def strinova(self, ctx):
         async with aiohttp.ClientSession() as session:
