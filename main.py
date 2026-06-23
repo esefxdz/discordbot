@@ -49,4 +49,5 @@ async def main():
             twitter.stop()
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 asyncio.run(main())
