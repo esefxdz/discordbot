@@ -193,55 +193,46 @@ class TelegramForwarder:
             elif message.sticker:
                 sticker_text = message.sticker.emoji or '(sticker)'
                 text = f'{prefix}{sticker_text}'
-                # >>> ANIMATED STICKER CONVERSION START >>>
-                if getattr(message.sticker, "is_animated", False):
-                    # Download .tgs sticker file
-                    file_data, filename = await self._download_file(message.sticker.file_id)
-                    try:
-                        # Write to a temporary .tgs file
-                        with tempfile.NamedTemporaryFile(suffix='.tgs', delete=False) as temp_tgs:
-                            temp_tgs.write(file_data)
-                            temp_tgs_path = temp_tgs.name
+                # >>> STICKER TO GIF CONVERSION START >>>
+                file_data, filename = await self._download_file(message.sticker.file_id)
+                try:
+                    # Determine original file suffix for temporary file
+                    suffix = os.path.splitext(filename)[1] or '.dat'
+                    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_in:
+                        temp_in.write(file_data)
+                        temp_in_path = temp_in.name
 
-                        temp_gif_path = temp_tgs_path + '.gif'
+                    temp_gif_path = temp_in_path + '.gif'
 
-                        process = await asyncio.create_subprocess_exec(
-                            'ffmpeg', '-y', '-i', temp_tgs_path,
-                            '-filter_complex', 'fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
-                            '-loop', '0', temp_gif_path,
-                            stdout=asyncio.subprocess.DEVNULL,
-                            stderr=asyncio.subprocess.PIPE
-                        )
+                    process = await asyncio.create_subprocess_exec(
+                        'ffmpeg', '-y', '-i', temp_in_path,
+                        '-filter_complex', 'fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
+                        '-loop', '0', temp_gif_path,
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.PIPE
+                    )
 
-                        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
 
-                        if process.returncode == 0 and os.path.exists(temp_gif_path):
-                            gif_size = os.path.getsize(temp_gif_path)
-                            if gif_size < 10 * 1024 * 1024:
-                                with open(temp_gif_path, 'rb') as f:
-                                    file_data = f.read()
-                                filename = filename.rsplit('.', 1)[0] + '.gif'
-                            else:
-                                print('[STICKER-HANDLER] Converted GIF exceeds size limit; sending original .tgs', flush=True)
+                    if process.returncode == 0 and os.path.exists(temp_gif_path):
+                        gif_size = os.path.getsize(temp_gif_path)
+                        if gif_size < 10 * 1024 * 1024:
+                            with open(temp_gif_path, 'rb') as f:
+                                file_data = f.read()
+                            filename = filename.rsplit('.', 1)[0] + '.gif'
                         else:
-                            print(f"[STICKER-HANDLER] ffmpeg error: {stderr.decode()}", flush=True)
-                    except Exception as e:
-                        print(f'Sticker conversion skipped/failed: {e}', flush=True)
-                    finally:
-                        # Clean up temporary files
-                        if os.path.exists(temp_tgs_path):
-                            os.remove(temp_tgs_path)
-                        if os.path.exists(temp_gif_path):
-                            os.remove(temp_gif_path)
-                    await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
-                else:
-                    # Static sticker – just forward the file
-                    try:
-                        file_data, filename = await self._download_file(message.sticker.file_id)
-                        await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
-                    except Exception:
-                        await self._send_to_webhook(webhook_url, sender, text)
-                # <<< ANIMATED STICKER CONVERSION END <<<
+                            print('[STICKER-HANDLER] Converted GIF exceeds size limit; sending original file', flush=True)
+                    else:
+                        print(f"[STICKER-HANDLER] ffmpeg error: {stderr.decode()}", flush=True)
+                except Exception as e:
+                    print(f'Sticker conversion skipped/failed: {e}', flush=True)
+                finally:
+                    if os.path.exists(temp_in_path):
+                        os.remove(temp_in_path)
+                    if os.path.exists(temp_gif_path):
+                        os.remove(temp_gif_path)
+                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
+                # <<< STICKER TO GIF CONVERSION END <<<
 
             elif message.text:
                 text = f'{prefix}{message.text}'
