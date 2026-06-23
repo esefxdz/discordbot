@@ -129,6 +129,24 @@ class TelegramForwarder:
 
             elif message.animation:
                 file_data, filename = await self._download_file(message.animation.file_id)
+                
+                # convert mp4 animation to true gif so discord auto-loops it
+                try:
+                    import asyncio
+                    process = await asyncio.create_subprocess_exec(
+                        'ffmpeg', '-i', 'pipe:0', '-f', 'gif', '-loop', '0', 'pipe:1',
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL
+                    )
+                    stdout_data, _ = await process.communicate(input=file_data)
+                    if process.returncode == 0 and stdout_data:
+                        file_data = stdout_data
+                        # replace extension with .gif
+                        filename = filename.rsplit('.', 1)[0] + '.gif'
+                except Exception as e:
+                    print(f'ffmpeg gif conversion failed (is ffmpeg installed?): {e}')
+
                 text = f'{prefix}{caption}'.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
