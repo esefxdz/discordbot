@@ -3,6 +3,10 @@ import io
 import json
 import aiohttp
 from telegram.ext import Application, MessageHandler, filters
+import asyncio
+import tempfile
+import os
+import shutil
 
 class TelegramForwarder:
     def __init__(self, token):
@@ -141,11 +145,8 @@ class TelegramForwarder:
                 file_data, filename = await self._download_file(file_id)
 
                 # Attempt conversion if it's a video/animation
+                # >>> FFMPEG GIF CONVERSION START >>>
                 try:
-                    import asyncio
-                    import tempfile
-                    import os
-                    import shutil
 
                     if not shutil.which('ffmpeg'):
                         raise RuntimeError("ffmpeg binary not found in PATH")
@@ -179,6 +180,7 @@ class TelegramForwarder:
                     if os.path.exists(temp_gif_path): os.remove(temp_gif_path)
                 except Exception as e:
                     print(f'ffmpeg conversion skipped/failed: {e}', flush=True)
+                # <<< FFMPEG GIF CONVERSION END <<<
 
                 text = f'{prefix}{caption}'.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
@@ -191,11 +193,55 @@ class TelegramForwarder:
             elif message.sticker:
                 sticker_text = message.sticker.emoji or '(sticker)'
                 text = f'{prefix}{sticker_text}'
-                try:
+                # >>> ANIMATED STICKER CONVERSION START >>>
+                if getattr(message.sticker, "is_animated", False):
+                    # Download .tgs sticker file
                     file_data, filename = await self._download_file(message.sticker.file_id)
+                    try:
+                        # Write to a temporary .tgs file
+                        with tempfile.NamedTemporaryFile(suffix='.tgs', delete=False) as temp_tgs:
+                            temp_tgs.write(file_data)
+                            temp_tgs_path = temp_tgs.name
+
+                        temp_gif_path = temp_tgs_path + '.gif'
+
+                        process = await asyncio.create_subprocess_exec(
+                            'ffmpeg', '-y', '-i', temp_tgs_path,
+                            '-filter_complex', 'fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
+                            '-loop', '0', temp_gif_path,
+                            stdout=asyncio.subprocess.DEVNULL,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+
+                        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
+
+                        if process.returncode == 0 and os.path.exists(temp_gif_path):
+                            gif_size = os.path.getsize(temp_gif_path)
+                            if gif_size < 10 * 1024 * 1024:
+                                with open(temp_gif_path, 'rb') as f:
+                                    file_data = f.read()
+                                filename = filename.rsplit('.', 1)[0] + '.gif'
+                            else:
+                                print('[STICKER-HANDLER] Converted GIF exceeds size limit; sending original .tgs', flush=True)
+                        else:
+                            print(f"[STICKER-HANDLER] ffmpeg error: {stderr.decode()}", flush=True)
+                    except Exception as e:
+                        print(f'Sticker conversion skipped/failed: {e}', flush=True)
+                    finally:
+                        # Clean up temporary files
+                        if os.path.exists(temp_tgs_path):
+                            os.remove(temp_tgs_path)
+                        if os.path.exists(temp_gif_path):
+                            os.remove(temp_gif_path)
                     await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
-                except Exception:
-                    await self._send_to_webhook(webhook_url, sender, text)
+                else:
+                    # Static sticker – just forward the file
+                    try:
+                        file_data, filename = await self._download_file(message.sticker.file_id)
+                        await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
+                    except Exception:
+                        await self._send_to_webhook(webhook_url, sender, text)
+                # <<< ANIMATED STICKER CONVERSION END <<<
 
             elif message.text:
                 text = f'{prefix}{message.text}'
