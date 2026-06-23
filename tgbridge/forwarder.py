@@ -110,6 +110,8 @@ class TelegramForwarder:
         prefix = self._forward_prefix(message)
         caption = message.caption or ''
 
+        # Log incoming message media types for debugging
+        print(f"[HANDLER] Types - photo:{bool(message.photo)} video:{bool(message.video)} animation:{bool(message.animation)} document:{bool(message.document)}", flush=True)
         try:
             if message.photo:
                 photo = message.photo[-1]
@@ -117,70 +119,72 @@ class TelegramForwarder:
                 text = f'{prefix}{caption}'.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
-            elif message.video:
-                file_data, filename = await self._download_file(message.video.file_id)
-                text = f'{prefix}{caption}'.strip()
-                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
+            # video and document handling are now managed by the enhanced GIF block below
 
-            elif message.document:
-                file_data, filename = await self._download_file(message.document.file_id)
-                text = f'{prefix}{caption}'.strip()
-                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
-
-            elif message.animation:
-                file_data, filename = await self._download_file(message.animation.file_id)
+            # --- START OF ENHANCED GIF HANDLING BLOCK ---
+            # Telegram may send a GIF as an `animation` (the normal case) *or*
+            # as a generic `document`/`video` with MIME type `video/mp4`.  We want to
+            # treat any of those as a potential GIF and try to convert it to a true
+            # GIF for Discord auto‑looping.
+            elif getattr(message, "animation", None) or (
+                getattr(message, "document", None) and message.document.mime_type.startswith("video")
+            ) or message.video:
+                # Identify the file source
+                if message.animation:
+                    file_id = message.animation.file_id
+                elif message.video:
+                    file_id = message.video.file_id
+                else:
+                    file_id = message.document.file_id
                 
-                # convert mp4 animation to true gif so discord auto-loops it
+                print(f"[GIF-HANDLER] Detected potential media (file_id={file_id})", flush=True)
+                file_data, filename = await self._download_file(file_id)
+
+                # Attempt conversion if it's a video/animation
                 try:
                     import asyncio
                     import tempfile
                     import os
-                    
+                    import shutil
+
+                    if not shutil.which('ffmpeg'):
+                        raise RuntimeError("ffmpeg binary not found in PATH")
+
                     with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_mp4:
                         temp_mp4.write(file_data)
                         temp_mp4_path = temp_mp4.name
-                        
+
                     temp_gif_path = temp_mp4_path + '.gif'
-                    
-                    # Use a palette to preserve quality, but drop fps to 15 and scale width to 320 to keep file size low.
-                    # Discord webhooks reject files > 25MB (sometimes > 8MB), and GIFs are massively unoptimized compared to MP4s.
+
                     process = await asyncio.create_subprocess_exec(
-                        'ffmpeg', '-y', '-i', temp_mp4_path, 
+                        'ffmpeg', '-y', '-i', temp_mp4_path,
                         '-filter_complex', 'fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
                         '-loop', '0', temp_gif_path,
                         stdout=asyncio.subprocess.DEVNULL,
                         stderr=asyncio.subprocess.PIPE
                     )
                     
-                    # Add a 30 second timeout so the bot doesn't hang if ffmpeg gets stuck
-                    try:
-                        _, stderr_data = await asyncio.wait_for(process.communicate(), timeout=30.0)
-                    except asyncio.TimeoutError:
-                        process.kill()
-                        _, stderr_data = await process.communicate()
-                        print("ffmpeg gif conversion timed out after 30 seconds.", flush=True)
-                    
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
+
                     if process.returncode == 0 and os.path.exists(temp_gif_path):
                         gif_size = os.path.getsize(temp_gif_path)
-                        # Fallback to MP4 if GIF is > 10 MiB, to prevent Discord from rejecting the webhook post
                         if gif_size < 10 * 1024 * 1024:
                             with open(temp_gif_path, 'rb') as f:
                                 file_data = f.read()
                             filename = filename.rsplit('.', 1)[0] + '.gif'
-                            print(f"ffmpeg conversion succeeded: GIF size {gif_size / 1024 / 1024:.2f} MiB", flush=True)
-                        else:
-                            print(f"GIF was too large for Discord webhook ({gif_size / 1024 / 1024:.2f} MiB). Falling back to MP4.", flush=True)
                     else:
-                        print(f"ffmpeg failed with code {process.returncode}. Stderr: {stderr_data.decode('utf-8', errors='ignore')}", flush=True)
-                        
-                    try:
-                        if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
-                        if os.path.exists(temp_gif_path): os.remove(temp_gif_path)
-                    except Exception:
-                        pass
+                        print(f"[GIF-HANDLER] ffmpeg error: {stderr.decode()}", flush=True)
+                    
+                    if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
+                    if os.path.exists(temp_gif_path): os.remove(temp_gif_path)
                 except Exception as e:
-                    print(f'ffmpeg gif conversion threw an exception: {e}', flush=True)
+                    print(f'ffmpeg conversion skipped/failed: {e}', flush=True)
 
+                text = f'{prefix}{caption}'.strip()
+                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
+
+            elif message.document:
+                file_data, filename = await self._download_file(message.document.file_id)
                 text = f'{prefix}{caption}'.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
