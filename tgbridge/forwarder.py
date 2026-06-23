@@ -133,17 +133,32 @@ class TelegramForwarder:
                 # convert mp4 animation to true gif so discord auto-loops it
                 try:
                     import asyncio
+                    import tempfile
+                    import os
+                    
+                    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_mp4:
+                        temp_mp4.write(file_data)
+                        temp_mp4_path = temp_mp4.name
+                        
+                    temp_gif_path = temp_mp4_path + '.gif'
+                    
                     process = await asyncio.create_subprocess_exec(
-                        'ffmpeg', '-i', 'pipe:0', '-f', 'gif', '-loop', '0', 'pipe:1',
-                        stdin=asyncio.subprocess.PIPE,
-                        stdout=asyncio.subprocess.PIPE,
+                        'ffmpeg', '-y', '-i', temp_mp4_path, '-f', 'gif', '-loop', '0', temp_gif_path,
+                        stdout=asyncio.subprocess.DEVNULL,
                         stderr=asyncio.subprocess.DEVNULL
                     )
-                    stdout_data, _ = await process.communicate(input=file_data)
-                    if process.returncode == 0 and stdout_data:
-                        file_data = stdout_data
-                        # replace extension with .gif
+                    await process.communicate()
+                    
+                    if process.returncode == 0 and os.path.exists(temp_gif_path):
+                        with open(temp_gif_path, 'rb') as f:
+                            file_data = f.read()
                         filename = filename.rsplit('.', 1)[0] + '.gif'
+                        
+                    try:
+                        if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
+                        if os.path.exists(temp_gif_path): os.remove(temp_gif_path)
+                    except Exception:
+                        pass
                 except Exception as e:
                     print(f'ffmpeg gif conversion failed (is ffmpeg installed?): {e}')
 
