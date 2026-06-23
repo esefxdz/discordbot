@@ -41,6 +41,7 @@ async def main():
         await bot.load_extension('cogs.sysinfo')
         await bot.load_extension('music.music')
         await bot.load_extension('cogs.statchannel')
+        await bot.load_extension('cogs.ffmpeg_things')
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))
