@@ -1,3 +1,4 @@
+from aiohttp import client_exceptions
 from discord.ext import commands
 import os
 import aiohttp
@@ -56,6 +57,13 @@ class General(commands.Cog):
                         await ctx.reply(f'could not fetch weather for {city}')
         except Exception as e:
             await ctx.reply(f'weather fetch failed: {e}')
+        
+    
+    @commands.command()
+    async def purge(self, ctx, amount: int):
+        if ctx.author.id != int(os.getenv('OWNER_ID')):
+            return
+        await ctx.channel.purge(limit=amount + 1)
 
 async def setup(bot):
     await bot.add_cog(General(bot))
