@@ -13,14 +13,13 @@ load_dotenv('credentials.env')
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix='!', intents=intents)
-bot.remove_command('help')
+bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 
-forwarder = TelegramForwarder(
-    token=os.getenv('TELEGRAM_BOT_TOKEN'),
-    group_id=int(os.getenv('TELEGRAM_GROUP_ID')),
-    webhook_url=os.getenv('DISCORD_WEBHOOK_URL'),
-)
+forwarder = TelegramForwarder(token=os.getenv('TELEGRAM_BOT_TOKEN'))
+if os.getenv('TELEGRAM_GROUP_ID') and os.getenv('DISCORD_WEBHOOK_URL'):
+    forwarder.add_route(int(os.getenv('TELEGRAM_GROUP_ID')), os.getenv('DISCORD_WEBHOOK_URL'))
+if os.getenv('TELEGRAM_GROUP_ID_SHITPOST') and os.getenv('DISCORD_WEBHOOK_URL_SHITPOST'):
+    forwarder.add_route(int(os.getenv('TELEGRAM_GROUP_ID_SHITPOST')), os.getenv('DISCORD_WEBHOOK_URL_SHITPOST'))
 
 twitter = TwitterRSSForwarder(
     rss_url=os.getenv('TWITTER_RSS_URL'),

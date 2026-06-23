@@ -5,11 +5,13 @@ import aiohttp
 from telegram.ext import Application, MessageHandler, filters
 
 class TelegramForwarder:
-    def __init__(self, token, group_id, webhook_url):
+    def __init__(self, token):
         self.token = token
-        self.group_id = group_id
-        self.webhook_url = webhook_url
+        self.routes = {}
         self._app = None
+
+    def add_route(self, group_id, webhook_url):
+        self.routes[group_id] = webhook_url
 
     async def start(self):
         self._app = Application.builder().token(self.token).build()
@@ -18,7 +20,7 @@ class TelegramForwarder:
         await self._app.initialize()
         await self._app.start()
         await self._app.updater.start_polling(drop_pending_updates=True)
-        print(f'✅ telegram forwarder started — watching group {self.group_id}')
+        print(f'✅ telegram forwarder started — watching {len(self.routes)} groups')
 
     async def stop(self):
         if self._app:
@@ -73,7 +75,7 @@ class TelegramForwarder:
         filename = tg_file.file_path.split('/')[-1] if tg_file.file_path else 'file'
         return buf.read(), filename
 
-    async def _send_to_webhook(self, username, content='', file_data=None, filename=None):
+    async def _send_to_webhook(self, webhook_url, username, content='', file_data=None, filename=None):
         async with aiohttp.ClientSession() as session:
             data = aiohttp.FormData()
             payload = {'username': username}
@@ -84,12 +86,12 @@ class TelegramForwarder:
                 data.add_field('payload_json', json.dumps(payload), content_type='application/json')
                 data.add_field('file', file_data, filename=filename)
             else:
-                async with session.post(self.webhook_url, json=payload) as resp:
+                async with session.post(webhook_url, json=payload) as resp:
                     if resp.status not in (200, 204):
                         print(f'webhook post failed: {resp.status} {await resp.text()}')
                     return
 
-            async with session.post(self.webhook_url, data=data) as resp:
+            async with session.post(webhook_url, data=data) as resp:
                 if resp.status not in (200, 204):
                     print(f'webhook post failed: {resp.status} {await resp.text()}')
 
@@ -99,10 +101,11 @@ class TelegramForwarder:
         if not message:
             return
 
-        # only process messages from the configured group
-        if update.effective_chat and update.effective_chat.id != self.group_id:
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        if chat_id not in self.routes:
             return
 
+        webhook_url = self.routes[chat_id]
         sender = self._sender_name(update)
         prefix = self._forward_prefix(message)
         caption = message.caption or ''
@@ -112,39 +115,39 @@ class TelegramForwarder:
                 photo = message.photo[-1]
                 file_data, filename = await self._download_file(photo.file_id)
                 text = f'{prefix}{caption}'.strip()
-                await self._send_to_webhook(sender, text, file_data, filename)
+                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
             elif message.video:
                 file_data, filename = await self._download_file(message.video.file_id)
                 text = f'{prefix}{caption}'.strip()
-                await self._send_to_webhook(sender, text, file_data, filename)
+                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
             elif message.document:
                 file_data, filename = await self._download_file(message.document.file_id)
                 text = f'{prefix}{caption}'.strip()
-                await self._send_to_webhook(sender, text, file_data, filename)
+                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
             elif message.animation:
                 file_data, filename = await self._download_file(message.animation.file_id)
                 text = f'{prefix}{caption}'.strip()
-                await self._send_to_webhook(sender, text, file_data, filename)
+                await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
             elif message.sticker:
                 sticker_text = message.sticker.emoji or '(sticker)'
                 text = f'{prefix}{sticker_text}'
                 try:
                     file_data, filename = await self._download_file(message.sticker.file_id)
-                    await self._send_to_webhook(sender, text, file_data, filename)
+                    await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
                 except Exception:
-                    await self._send_to_webhook(sender, text)
+                    await self._send_to_webhook(webhook_url, sender, text)
 
             elif message.text:
                 text = f'{prefix}{message.text}'
-                await self._send_to_webhook(sender, text)
+                await self._send_to_webhook(webhook_url, sender, text)
 
             else:
                 text = f'{prefix}*(unsupported message type)*'
-                await self._send_to_webhook(sender, text)
+                await self._send_to_webhook(webhook_url, sender, text)
 
         except Exception as e:
             print(f'failed to forward message from {sender}: {e}')
