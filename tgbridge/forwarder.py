@@ -142,17 +142,35 @@ class TelegramForwarder:
                         
                     temp_gif_path = temp_mp4_path + '.gif'
                     
+                    # Use a palette to preserve quality, but drop fps to 15 and scale width to 320 to keep file size low.
+                    # Discord webhooks reject files > 25MB (sometimes > 8MB), and GIFs are massively unoptimized compared to MP4s.
                     process = await asyncio.create_subprocess_exec(
-                        'ffmpeg', '-y', '-i', temp_mp4_path, '-f', 'gif', '-loop', '0', temp_gif_path,
+                        'ffmpeg', '-y', '-i', temp_mp4_path, 
+                        '-vf', 'fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
+                        '-loop', '0', temp_gif_path,
                         stdout=asyncio.subprocess.DEVNULL,
-                        stderr=asyncio.subprocess.DEVNULL
+                        stderr=asyncio.subprocess.PIPE
                     )
-                    await process.communicate()
+                    
+                    # Add a 30 second timeout so the bot doesn't hang if ffmpeg gets stuck
+                    try:
+                        _, stderr_data = await asyncio.wait_for(process.communicate(), timeout=30.0)
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        _, stderr_data = await process.communicate()
+                        print("ffmpeg gif conversion timed out after 30 seconds.")
                     
                     if process.returncode == 0 and os.path.exists(temp_gif_path):
-                        with open(temp_gif_path, 'rb') as f:
-                            file_data = f.read()
-                        filename = filename.rsplit('.', 1)[0] + '.gif'
+                        gif_size = os.path.getsize(temp_gif_path)
+                        # Fallback to MP4 if GIF is > 8MB, to prevent Discord from rejecting the webhook post
+                        if gif_size < 8 * 1024 * 1024:
+                            with open(temp_gif_path, 'rb') as f:
+                                file_data = f.read()
+                            filename = filename.rsplit('.', 1)[0] + '.gif'
+                        else:
+                            print(f"GIF was too large for Discord webhook ({gif_size / 1024 / 1024:.2f}MB). Falling back to MP4.")
+                    else:
+                        print(f"ffmpeg failed with code {process.returncode}. Stderr: {stderr_data.decode('utf-8', errors='ignore')}")
                         
                     try:
                         if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
@@ -160,7 +178,7 @@ class TelegramForwarder:
                     except Exception:
                         pass
                 except Exception as e:
-                    print(f'ffmpeg gif conversion failed (is ffmpeg installed?): {e}')
+                    print(f'ffmpeg gif conversion threw an exception: {e}')
 
                 text = f'{prefix}{caption}'.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
