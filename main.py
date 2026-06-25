@@ -42,6 +42,7 @@ async def main():
         await bot.load_extension('music.music')
         await bot.load_extension('cogs.statchannel')
         await bot.load_extension('cogs.ffmpeg_things')
+        await bot.load_extension('cogs.currency_converter')
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))

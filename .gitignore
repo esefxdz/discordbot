@@ -2,3 +2,5 @@ gifs/
 credentials.env
 .vscode/__pycache__/
 data/
+cogs/currency_aliases.py
+cogs/currency_aliases.json
