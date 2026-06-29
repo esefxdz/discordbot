@@ -6,6 +6,8 @@ import logging
 import asyncio
 
 from tgbridge.forwarder import TelegramForwarder
+from tgbridge.discord_to_telegram import DiscordToTelegramForwarder
+
 from twitterbridge.rss import TwitterRSSForwarder
 
 load_dotenv('credentials.env')
@@ -21,6 +23,13 @@ if os.getenv('TELEGRAM_GROUP_ID') and os.getenv('DISCORD_WEBHOOK_URL'):
 if os.getenv('TELEGRAM_GROUP_ID_SHITPOST') and os.getenv('DISCORD_WEBHOOK_URL_SHITPOST'):
     forwarder.add_route(int(os.getenv('TELEGRAM_GROUP_ID_SHITPOST')), os.getenv('DISCORD_WEBHOOK_URL_SHITPOST'))
 
+# Discord → Telegram (reverse bridge)
+d_to_tg = DiscordToTelegramForwarder(bot=bot, tg_token=os.getenv('TELEGRAM_BOT_TOKEN'))
+if os.getenv('DISCORD_CHANNEL_ID') and os.getenv('TELEGRAM_GROUP_ID'):
+    d_to_tg.add_route(int(os.getenv('DISCORD_CHANNEL_ID')), int(os.getenv('TELEGRAM_GROUP_ID')))
+if os.getenv('DISCORD_CHANNEL_ID_SHITPOST') and os.getenv('TELEGRAM_GROUP_ID_SHITPOST'):
+    d_to_tg.add_route(int(os.getenv('DISCORD_CHANNEL_ID_SHITPOST')), int(os.getenv('TELEGRAM_GROUP_ID_SHITPOST')))
+
 twitter = TwitterRSSForwarder(
     rss_url=os.getenv('TWITTER_RSS_URL'),
     webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK'),
@@ -34,6 +43,7 @@ async def on_ready():
 
 async def main():
     async with bot:
+        await bot.add_cog(d_to_tg)
         await bot.load_extension('cogs.general')
         await bot.load_extension('cogs.chance')
         await bot.load_extension('cogs.gifs')

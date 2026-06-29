@@ -48,28 +48,7 @@ class TelegramForwarder:
             return chat.title
         return 'unknown'
 
-    def _forward_prefix(self, message):
-        if message.forward_origin:
-            origin = message.forward_origin
-            
-            # user forward
-            if hasattr(origin, 'sender_user') and origin.sender_user:
-                u = origin.sender_user
-                name = u.first_name or ''
-                if u.last_name:
-                    name += f' {u.last_name}'
-                return f'↩️ Forwarded from **{name.strip() or u.username or "unknown"}**:\n'
-            
-            # channel forward
-            if hasattr(origin, 'chat') and origin.chat:
-                return f'↩️ Forwarded from **{origin.chat.title or "unknown channel"}**:\n'
-            
-            # hidden user
-            if hasattr(origin, 'sender_user_name') and origin.sender_user_name:
-                return f'↩️ Forwarded from **{origin.sender_user_name}**:\n'
-            
-            return '↩️ Forwarded:\n'
-        return ''
+
 
     async def _download_file(self, file_id):
         tg_file = await self._app.bot.get_file(file_id)
@@ -111,7 +90,6 @@ class TelegramForwarder:
 
         webhook_url = self.routes[chat_id]
         sender = self._sender_name(update)
-        prefix = self._forward_prefix(message)
         caption = message.caption or ''
 
         # Log incoming message media types for debugging
@@ -120,7 +98,7 @@ class TelegramForwarder:
             if message.photo:
                 photo = message.photo[-1]
                 file_data, filename = await self._download_file(photo.file_id)
-                text = f'{prefix}{caption}'.strip()
+                text = caption.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
             # video and document handling are now managed by the enhanced GIF block below
@@ -182,17 +160,17 @@ class TelegramForwarder:
                     print(f'ffmpeg conversion skipped/failed: {e}', flush=True)
                 # <<< FFMPEG GIF CONVERSION END <<<
 
-                text = f'{prefix}{caption}'.strip()
+                text = caption.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
             elif message.document:
                 file_data, filename = await self._download_file(message.document.file_id)
-                text = f'{prefix}{caption}'.strip()
+                text = caption.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
 
             elif message.sticker:
                 sticker_text = message.sticker.emoji or '(sticker)'
-                text = f'{prefix}{sticker_text}'
+                text = sticker_text
                 # >>> STICKER TO GIF CONVERSION START >>>
                 file_data, filename = await self._download_file(message.sticker.file_id)
                 try:
@@ -235,11 +213,11 @@ class TelegramForwarder:
                 # <<< STICKER TO GIF CONVERSION END <<<
 
             elif message.text:
-                text = f'{prefix}{message.text}'
+                text = message.text
                 await self._send_to_webhook(webhook_url, sender, text)
 
             else:
-                text = f'{prefix}*(unsupported message type)*'
+                text = '*(unsupported message type)*'
                 await self._send_to_webhook(webhook_url, sender, text)
 
         except Exception as e:
