@@ -4,3 +4,4 @@ credentials.env
 data/
 cogs/currency_aliases.py
 cogs/currency_aliases.json
+ai/__pycache__

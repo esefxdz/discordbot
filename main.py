@@ -54,6 +54,7 @@ async def main():
         await bot.load_extension('cogs.statchannel')
         await bot.load_extension('cogs.ffmpeg_things')
         await bot.load_extension('cogs.currency_converter')
+        await bot.load_extension('ai.ai_roleplay')
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))
