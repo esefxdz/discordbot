@@ -29,7 +29,7 @@ class DiscordToTelegramForwarder(commands.Cog):
     def _format_header(self, message: discord.Message) -> str:
         """Return a bold sender label: *Username* (Discord)"""
         name = message.author.display_name
-        return f"*{discord.utils.escape_markdown(name)}* (Discord):"
+        return f"{discord.utils.escape_markdown(name)}"
 
     async def _send_text(self, chat_id: int, text: str):
         try:
