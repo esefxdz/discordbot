@@ -37,7 +37,7 @@ class CurrencyConverter(commands.Cog):
         cached = _RATE_CACHE.get(base)
         if cached and now - cached[0] < _CACHE_TTL:
             return cached[1]
-        url = f"https://frankfurter.app/latest?from={base}"
+        url = f"https://api.frankfurter.app/latest?base={base}"
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
