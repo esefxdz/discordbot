@@ -40,6 +40,12 @@ async def on_ready():
     print(f'✅ {bot.user} is online!')
     asyncio.create_task(forwarder.start())
     asyncio.create_task(twitter.start())
+    try:
+        synced = await bot.tree.sync()
+        print(f'✅ synced {len(synced)} slash command(s)')
+    except Exception as e:
+        print(f'slash command sync failed: {e}')
+
 
 async def main():
     async with bot:

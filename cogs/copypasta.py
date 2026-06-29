@@ -111,6 +111,11 @@ I will love, cherish, and protect Yuuka until my very last breath; my successors
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠛⣳⡾⢯⣿⣷⣶⣦⣤⣤⣤⣤⠤⡶⢶⣞⡛⠛⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀"""
         await ctx.reply(file=discord.File(io.StringIO(pasta), filename="yuyuko.txt"))
 
+    @commands.command()
+    async def anlaki(self, ctx):
+        pasta = r"""bro anlaki bro anlaki you guys are dogshit bro anlaki bro anlaki. You guys have; NO hands, NO brain, I'm so happy that I have monitor I have mouse I have keyboard uhh I have body I have hands I have arms... feet? Like bro..."""
+        await ctx.reply(pasta)
+
 async def setup(bot):
     await bot.add_cog(Copypasta(bot))
 
