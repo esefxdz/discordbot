@@ -121,11 +121,11 @@ class AIRoleplay(commands.Cog):
         
         if wh:
             display_name = persona.capitalize()
-            for i, chunk in enumerate(chunks):
-                kwargs = {'content': chunk, 'username': display_name, 'wait': True}
-                if i == 0 and avatar_bytes:
-                    kwargs['avatar'] = avatar_bytes
-                await wh.send(**kwargs)
+            # set webhook avatar before sending (avatar takes bytes via edit, not send)
+            if avatar_bytes:
+                await wh.edit(avatar=avatar_bytes)
+            for chunk in chunks:
+                await wh.send(content=chunk, username=display_name, wait=True)
         else:
             first = True
             for chunk in chunks:
@@ -140,6 +140,9 @@ class AIRoleplay(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
+
+        # ensure commands always work
+        await self.bot.process_commands(message)
 
         mentioned = self.bot.user in message.mentions
         in_active = message.channel.id in self.active_channels
