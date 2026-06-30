@@ -249,7 +249,7 @@ class AIRoleplay(commands.Cog):
             return
 
         # ensure commands always work
-        await self.bot.process_commands(message)
+        # (Removed: bot processes commands automatically by default, calling it here caused double execution)
 
         mentioned = self.bot.user in message.mentions
         in_active = message.channel.id in self.active_channels

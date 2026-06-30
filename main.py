@@ -18,6 +18,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 
+# Telegram → Discord
 forwarder = TelegramForwarder(token=os.getenv('TELEGRAM_BOT_TOKEN'))
 if os.getenv('TELEGRAM_GROUP_ID') and os.getenv('DISCORD_WEBHOOK_URL'):
     forwarder.add_route(int(os.getenv('TELEGRAM_GROUP_ID')), os.getenv('DISCORD_WEBHOOK_URL'))
