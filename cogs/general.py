@@ -15,8 +15,6 @@ class General(commands.Cog):
     async def yuuka(self, ctx):
         await ctx.send('kanpeki!')
 
-
-
     @commands.command()
     async def weather(self, ctx, *, city: str = "kayseri"):
         try:
@@ -44,6 +42,12 @@ class General(commands.Cog):
     async def ferox(self, ctx, duration: str):
         if ctx.author.id != int(os.getenv("MELLO")):
             return await ctx.reply("you are not her bro")
+        ferox = ctx.guild.get_member(int(os.getenv("FEROX")))
+        
+        if duration.lower() in ("off", "unmute"):
+            await ferox.timeout(None)
+            await ctx.reply("oh, you want him free? fine.")
+            return
 
         units = {
             "m": timedelta(minutes=1),
@@ -54,7 +58,7 @@ class General(commands.Cog):
 
         amount = int(duration[:-1])
         delta = amount * units[duration[-1].lower()]
-        ferox = ctx.guild.get_member(int(os.getenv("FEROX")))
+
         await ferox.timeout(discord.utils.utcnow() + delta)
         await ctx.reply(f"muted ferox for {duration}, she knows the best")
 

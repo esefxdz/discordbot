@@ -57,6 +57,7 @@ async def main():
         await bot.load_extension('cogs.currency_converter')
         await bot.load_extension('ai.ai_roleplay')
         await bot.load_extension('twitterbridge.leaks_cmd')
+        await bot.load_extension("rio")
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))
