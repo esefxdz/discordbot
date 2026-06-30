@@ -384,7 +384,8 @@ class AIRoleplay(commands.Cog):
             return await ctx.reply(f'couldnt find {name}. available: {avail}')
 
         self.active_personas[ctx.channel.id] = name.lower()
-        self.prompts.pop(ctx.channel.id, None)
+        for t in ('flash', 'pro'):
+            self.prompts.pop((ctx.channel.id, t), None)
         self.memory[ctx.channel.id].clear()
         await ctx.reply(f'switched to {name} and wiped memory')
 
