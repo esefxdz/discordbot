@@ -313,7 +313,7 @@ class AIRoleplay(commands.Cog):
             "messages": api_msgs,
             "max_tokens": MAX_TOKENS_THINKING if thinking_on else MAX_TOKENS_NORMAL,
             "extra_body": {"thinking": thinking_body},
-            "temperature": 0.50
+            "temperature": 0.85
         }
 
         async with message.channel.typing():
