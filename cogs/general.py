@@ -1,7 +1,6 @@
 from datetime import timedelta
 from aiohttp import client_exceptions
 import discord
-from aiohttp import client_exceptions
 from discord.ext import commands
 import os
 import aiohttp
@@ -16,6 +15,7 @@ class General(commands.Cog):
     async def yuuka(self, ctx):
         await ctx.send('kanpeki!')
 
+    #will soon be removed from here when im not lazy
     @commands.command()
     async def leaks(self, ctx):
         rss_url = os.getenv('TWITTER_RSS_URL')
