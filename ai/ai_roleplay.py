@@ -169,6 +169,7 @@ class AIRoleplay(commands.Cog):
         # it on doesn't silently change behavior everywhere else
         self.thinking_channels = set()   # channel_ids with thinking ON
         self.thinking_effort = {}        # channel_id -> 'high' | 'max'
+        self.temperature = 0.85
 
     # ==========================================
     # CORE AI LOGIC & LISTENERS
@@ -204,7 +205,7 @@ class AIRoleplay(commands.Cog):
         except discord.Forbidden:
             return None
 
-    #this sends the message as the persona, with vision support (if images are present)
+    #this sends the message as the persona, with vision support (vision support is broken rn) 
     async def send_as_char(self, message, text, persona):
         avatar_path = os.path.join(os.path.dirname(__file__), 'personalities', f'{persona.lower()}_avatar.png')
         avatar_bytes = None
@@ -314,7 +315,7 @@ class AIRoleplay(commands.Cog):
             "messages": api_msgs,
             "max_tokens": MAX_TOKENS_THINKING if thinking_on else MAX_TOKENS_NORMAL,
             "extra_body": {"thinking": thinking_body},
-            "temperature": 0.85
+            "temperature": self.temperature
         }
 
         async with message.channel.typing():
@@ -488,6 +489,17 @@ class AIRoleplay(commands.Cog):
             await ctx.reply(f"🧠 thinking is **on** for this channel (effort: `{effort}`, model: `{self.active_model}`)")
         else:
             await ctx.reply(f"🧠 thinking is **off** for this channel (model: `{self.active_model}`)")
+
+    #this is for bot temperature management
+    @commands.command()
+    async def temperature(self, ctx, value: float):
+        if not self.is_allowed(ctx.author):
+            return
+        if not (0.0 <= value <= 2.0):
+            return await ctx.reply("temperature must be between 0.0 and 2.0.")
+            
+        self.temperature = value
+        await ctx.reply(f"🌡️ **Temperature set to {value}**\n*(Lower = stricter/robotic, Higher = creative/chaotic)*")
 
 async def setup(bot):
     await bot.add_cog(AIRoleplay(bot))
