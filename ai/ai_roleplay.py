@@ -6,13 +6,14 @@ import re
 import time
 import asyncio
 import discord
+import logging
 from discord.ext import commands
 from collections import defaultdict, deque
 # pyrefly: ignore [missing-import]
 from openai import AsyncOpenAI
 
 #only last 12 messages on discord will be fed into the ai's memory
-MEMORY_SIZE = 12
+MEMORY_SIZE = 15
 
 # These are the ONLY two valid DeepSeek V4 model IDs. deepseek-chat and
 # deepseek-reasoner are legacy aliases scheduled for retirement on
@@ -170,11 +171,51 @@ class AIRoleplay(commands.Cog):
         self.thinking_channels = set()   # channel_ids with thinking ON
         self.thinking_effort = {}        # channel_id -> 'high' | 'max'
         self.temperature = 0.85
+        self.channel_summary = {}        # channel_id -> str
 
     # ==========================================
     # CORE AI LOGIC & LISTENERS
     # ==========================================
     
+    #this helper summarizes evicted memory to maintain long-term context
+    async def update_summary(self, channel_id, evicted_message):
+        try:
+            current_summary = self.channel_summary.get(channel_id, "")
+            evicted_text = evicted_message.get('content', '')
+            
+            # handle vision support list format
+            if isinstance(evicted_text, list):
+                evicted_text = next((item['text'] for item in evicted_text if item.get('type') == 'text'), '')
+                
+            if not evicted_text:
+                return
+
+            sys_prompt = (
+                "You are a background memory summarizer. "
+                "Merge the new evicted message into the existing summary. "
+                "Keep the total summary under 150 words. "
+                "Only retain facts relevant to story/relationship continuity, ignore minor chitchat."
+            )
+            user_prompt = f"Existing Summary:\n{current_summary}\n\nEvicted Message:\n{evicted_text}"
+
+            kwargs = {
+                "model": MODEL_FLASH,
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "max_tokens": 300,
+                "extra_body": {"thinking": {"type": "disabled"}},
+            }
+
+            resp = await self.client.chat.completions.create(**kwargs)
+            new_summary = (resp.choices[0].message.content or '').strip()
+            if new_summary:
+                self.channel_summary[channel_id] = new_summary
+                
+        except Exception as e:
+            logging.error(f"Summarization failed for channel {channel_id}: {e}")
+
     #only accepts me and hizuki
     def is_allowed(self, user):
         return user.id in self.allowed_users
@@ -296,9 +337,21 @@ class AIRoleplay(commands.Cog):
 
         # DeepSeek and older models prefer pure strings if there are no images
         final_content = user_content if has_images else user_content[0]["text"]
+        
+        # summarize evicted memory before it drops off the deque
+        if len(mem) >= mem.maxlen:
+            await self.update_summary(cid, mem[0])
+            
         mem.append({'role': 'user', 'content': final_content})
         
-        api_msgs = [{'role': 'system', 'content': prompt}] + list(mem)
+        api_msgs = [{'role': 'system', 'content': prompt}]
+        
+        # inject the background summary into the system prompt if it exists
+        summary = self.channel_summary.get(cid)
+        if summary:
+            api_msgs[0]['content'] += f"\n\nMEMORY (earlier context, may be approximate):\n{summary}"
+            
+        api_msgs += list(mem)
         model_to_use = self.active_model  # always MODEL_FLASH or MODEL_PRO, never swapped
 
         #VISION SUPPORT END
@@ -478,6 +531,26 @@ class AIRoleplay(commands.Cog):
         embed.set_footer(text=f'model: {self.active_model} · this channel only')
         await ctx.reply(embed=embed, view=ThinkingView(self, cid))
 
+    #this shows the current memory summary for the channel
+    @commands.command()
+    async def summary(self, ctx):
+        if not self.is_allowed(ctx.author):
+            return
+        summary_text = self.channel_summary.get(ctx.channel.id)
+        if not summary_text:
+            return await ctx.reply("No summary yet.")
+            
+        embed = discord.Embed(title='🧠 Channel Memory Summary', description=summary_text, color=0x2b2d31)
+        await ctx.reply(embed=embed)
+
+    #this wipes the memory summary for the channel
+    @commands.command()
+    async def clearsummary(self, ctx):
+        if not self.is_allowed(ctx.author):
+            return
+        self.channel_summary.pop(ctx.channel.id, None)
+        await ctx.reply("Channel summary cleared.")
+
     #this checks thinking status without opening the menu, only usable by me and hizu
     @commands.command()
     async def thinkstatus(self, ctx):
@@ -499,7 +572,7 @@ class AIRoleplay(commands.Cog):
             return await ctx.reply("temperature must be between 0.0 and 2.0.")
             
         self.temperature = value
-        await ctx.reply(f"🌡️ **Temperature set to {value}**\n*(Lower = stricter/robotic, Higher = creative/chaotic)*")
+        await ctx.reply(f"**Temperature set to {value}**\n*(Lower = stricter/robotic, Higher = creative/chaotic)*")
 
 async def setup(bot):
     await bot.add_cog(AIRoleplay(bot))
