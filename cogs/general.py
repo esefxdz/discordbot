@@ -1,3 +1,5 @@
+from datetime import timedelta
+from aiohttp import client_exceptions
 import discord
 from aiohttp import client_exceptions
 from discord.ext import commands
@@ -65,6 +67,25 @@ class General(commands.Cog):
         if ctx.author.id != int(os.getenv('OWNER_ID')):
             return
         await ctx.channel.purge(limit=amount + 1)
+
+    #member specific command, priviliged
+    @commands.command()
+    async def ferox(self, ctx, duration: str):
+        if ctx.author.id != int(os.getenv("MELLO")):
+            return await ctx.reply("you are not her bro")
+
+        units = {
+            "m": timedelta(minutes=1),
+            "h": timedelta(hours=1),
+            "d": timedelta(days=1),
+            "w": timedelta(weeks=1),
+            }
+
+        amount = int(duration[:-1])
+        delta = amount * units[duration[-1].lower()]
+        ferox = ctx.guild.get_member(int(os.getenv("FEROX")))
+        await ferox.timeout(discord.utils.utcnow() + delta)
+        await ctx.reply(f"muted ferox for {duration}, she knows the best")
 
     @commands.command()
     async def ban(self, ctx, *, reason=None):
@@ -136,4 +157,4 @@ class General(commands.Cog):
         print(f'Error: {error}')
 
 async def setup(bot):
-    await bot.add_cog(General(bot))
+    await bot.add_cog(General(bot))

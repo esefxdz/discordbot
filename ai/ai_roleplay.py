@@ -8,6 +8,7 @@ import asyncio
 import discord
 from discord.ext import commands
 from collections import defaultdict, deque
+# pyrefly: ignore [missing-import]
 from openai import AsyncOpenAI
 
 #only last 12 messages on discord will be fed into the ai's memory
