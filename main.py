@@ -54,6 +54,7 @@ async def main():
         await bot.load_extension('music.music')
         await bot.load_extension('cogs.statchannel')
         await bot.load_extension('cogs.ffmpeg_things')
+        await bot.load_extension('cogs.archive')
         await bot.load_extension('cogs.currency_converter')
         await bot.load_extension('ai.ai_roleplay')
         await bot.load_extension('twitterbridge.leaks_cmd')
