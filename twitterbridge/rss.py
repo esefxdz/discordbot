@@ -4,13 +4,14 @@ import asyncio
 import aiohttp
 import feedparser
 
-POLL_INTERVAL = 1800  # 30 minutes
+POLL_INTERVAL = 300  # 5 minutes
 GUID_FILE = 'data/last_tweet.txt'
 
 class TwitterRSSForwarder:
-    def __init__(self, rss_url, webhook_url):
+    def __init__(self, rss_url, webhook_url, guid_file='data/last_tweet.txt'):
         self.rss_url = rss_url
         self.webhook_url = webhook_url
+        self.guid_file = guid_file
         self.last_guid = None
         self._running = False
 
@@ -32,13 +33,13 @@ class TwitterRSSForwarder:
         print('twitter rss forwarder stopped')
 
     def _load_last_guid(self):
-        if os.path.exists(GUID_FILE):
-            with open(GUID_FILE, 'r') as f:
+        if os.path.exists(self.guid_file):
+            with open(self.guid_file, 'r') as f:
                 self.last_guid = f.read().strip() or None
 
     def _save_last_guid(self):
         os.makedirs('data', exist_ok=True)
-        with open(GUID_FILE, 'w') as f:
+        with open(self.guid_file, 'w') as f:
             f.write(self.last_guid or '')
 
     async def _poll(self):

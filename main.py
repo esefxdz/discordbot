@@ -37,11 +37,18 @@ twitter = TwitterRSSForwarder(
     webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK'),
 )
 
+twitter_mao = TwitterRSSForwarder(
+    rss_url=os.getenv('TWITTER_RSS_URL'),
+    webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK_MAO'),
+    guid_file='data/last_tweet_mao.txt',
+)
+
 @bot.event
 async def on_ready():
     print(f'✅ {bot.user} is online!')
     asyncio.create_task(forwarder.start())
     asyncio.create_task(twitter.start())
+    asyncio.create_task(twitter_mao.start())
 
 async def main():
     async with bot:
@@ -65,6 +72,7 @@ async def main():
         finally:
             await forwarder.stop()
             twitter.stop()
+            twitter_mao.stop()
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('httpx').setLevel(logging.WARNING)
