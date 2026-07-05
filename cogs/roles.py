@@ -280,7 +280,7 @@ class Roles(commands.Cog):
                     reason=f"custom decorative role for {member}",
                 )
                 # Place just above @everyone
-                await guild.edit_role_positions([(role, 1)])
+                await guild.edit_role_positions({role: 1})
                 await member.add_roles(role, reason="custom decorative role")
 
         except discord.Forbidden:
