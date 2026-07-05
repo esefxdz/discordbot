@@ -128,7 +128,6 @@ class _StationSelect(discord.ui.View):
         self._interaction = interaction
         self.message: discord.Message | None = None
         self._picked: dict | None = None
-        self._done = asyncio.Event()
 
         options = []
         for s in stations:
@@ -158,7 +157,6 @@ class _StationSelect(discord.ui.View):
         cog = self.bot.get_cog("Music")
         if cog and self._picked:
             await cog._play_radio_stream(interaction, self.category, self._picked)
-        self._done.set()
         self.stop()
 
     async def on_timeout(self):
@@ -177,6 +175,7 @@ class Music(commands.Cog):
         self.bot    = bot
         self._states: dict[int, GuildState] = {}
         self._voice_channels: dict[int, int] = {}  # guild_id → channel_id for disconnect cleanup
+        self._radio_channels: dict[int, int] = {}  # guild_id → channel_id for radio-drop notifications
         self._locks: dict[int, asyncio.Lock] = {}
 
         # Load radio stations
@@ -260,6 +259,7 @@ class Music(commands.Cog):
             if st:
                 st.queue.clear()
             self._locks.pop(guild_id, None)
+            self._radio_channels.pop(guild_id, None)
             await self._clear_channel_status(guild_id)
 
     # ── track end → advance queue ─────────────────────────────────────────────
@@ -270,12 +270,6 @@ class Music(commands.Cog):
             return
 
         st = self.state(player.guild.id)
-
-        # Radio mode: stream ended — just stop
-        if st.mode == MODE_RADIO:
-            st.mode = None
-            await self._set_channel_status(player)
-            return
 
         if st.loop == LOOP_TRACK and st.current:
             await player.play(st.current)
@@ -297,9 +291,56 @@ class Music(commands.Cog):
             # wavelink built-in autoplay
             await player.set_autoplay(wavelink.AutoPlayMode.enabled)
         else:
+            # If a radio stream dropped unexpectedly, notify the channel
+            if st.mode == MODE_RADIO:
+                await self._notify_radio_drop(player.guild.id)
             st.current = None
             st.mode = None
             await self._set_channel_status(player)
+
+    # ── track exception / stuck → radio stream failures ──────────────────────
+    @commands.Cog.listener()
+    async def on_wavelink_track_exception(self, payload: wavelink.TrackExceptionEventPayload):
+        player: wavelink.Player = payload.player
+        if player is None:
+            return
+        st = self.state(player.guild.id)
+        if st.mode == MODE_RADIO:
+            log.warning(f"Radio stream exception in guild {player.guild.id}: {payload.exception}")
+            await self._notify_radio_drop(player.guild.id)
+            st.mode = None
+            await self._set_channel_status(player)
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_stuck(self, payload: wavelink.TrackStuckEventPayload):
+        player: wavelink.Player = payload.player
+        if player is None:
+            return
+        st = self.state(player.guild.id)
+        if st.mode == MODE_RADIO:
+            log.warning(f"Radio stream stuck in guild {player.guild.id}, threshold {payload.threshold_ms}ms")
+            await self._notify_radio_drop(player.guild.id)
+            st.mode = None
+            await self._set_channel_status(player)
+
+    async def _notify_radio_drop(self, guild_id: int):
+        """Send a notification to the channel where radio was started."""
+        channel_id = self._radio_channels.pop(guild_id, None)
+        if channel_id is None:
+            return
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return
+        channel = guild.get_channel_or_thread(channel_id)
+        if channel is None:
+            return
+        try:
+            await channel.send(embed=discord.Embed(
+                description="📻 Radio stream ended unexpectedly. Use `!radio` to restart.",
+                color=C_WARN,
+            ))
+        except Exception:
+            log.warning(f"Failed to send radio-drop notification in guild {guild_id}", exc_info=True)
 
     # ── track start → update status ───────────────────────────────────────────
     @commands.Cog.listener()
@@ -457,6 +498,7 @@ class Music(commands.Cog):
             await vc.disconnect()
 
         self._voice_channels.pop(ctx.guild.id, None)
+        self._radio_channels.pop(ctx.guild.id, None)
         self._locks.pop(ctx.guild.id, None)
 
         if current_mode == MODE_RADIO:
@@ -706,6 +748,17 @@ class Music(commands.Cog):
         st = self.state(guild.id)
 
         async with self._lock(guild.id):
+            # Re-check mode — music may have started between !radio and now
+            if st.mode == MODE_MUSIC:
+                await interaction.followup.send(
+                    embed=discord.Embed(
+                        description="🎵 Music is currently playing. Use `!stop` first to switch to radio.",
+                        color=C_WARN,
+                    ),
+                    ephemeral=True,
+                )
+                return
+
             # Connect or reuse existing player
             vc = guild.voice_client
             if not isinstance(vc, wavelink.Player):
@@ -721,8 +774,11 @@ class Music(commands.Cog):
                 vc.inactive_timeout = None
                 self._voice_channels[guild.id] = member.voice.channel.id
 
-            # Stop anything currently playing
+            # Clear mode before skipping so the old track_end handler
+            # doesn't interfere with the new station's state
             if vc.playing or vc.paused:
+                st.mode = None
+                st.current = None
                 await vc.skip()
 
             # Resolve and play the stream URL via Lavalink
@@ -746,14 +802,25 @@ class Music(commands.Cog):
                 )
                 return
 
-            await vc.play(track)
-
-            # Set mode and clear any music state
+            # Set radio state *before* play so on_wavelink_track_start
+            # sees MODE_RADIO and doesn't overwrite our status text
             st.queue.clear()
             st.current = track
             st.loop = LOOP_OFF
             st.autoplay = False
             st.mode = MODE_RADIO
+            self._radio_channels[guild.id] = interaction.channel_id
+
+            try:
+                await vc.play(track)
+            except Exception as e:
+                st.mode = None
+                self._radio_channels.pop(guild.id, None)
+                await interaction.followup.send(
+                    embed=discord.Embed(description=f"❌ Failed to play stream: {e}", color=C_ERR),
+                    ephemeral=True,
+                )
+                return
 
             # Set channel status with the JSON station name
             await self._set_channel_status(vc, title=station["name"])
