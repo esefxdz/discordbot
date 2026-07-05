@@ -33,7 +33,10 @@ async def run_git_pull() -> tuple[int, str]:
         await proc.communicate()
         return -1, f"git pull timed out after {GIT_TIMEOUT}s"
 
-    output = (stdout.decode() + stderr.decode()).strip()
+    raw = (stdout.decode() + stderr.decode()).strip()
+    output = "\n".join(
+        line for line in raw.splitlines() if not line.strip().startswith("[sudo]")
+    )
     return proc.returncode, output or "No output."
 
 
