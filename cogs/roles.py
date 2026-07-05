@@ -29,7 +29,9 @@ from discord.ext import commands
 
 # ── constants ────────────────────────────────────────────────────────────────
 
-ROLE_TAG = ""
+# Invisible Unicode sentinel appended to every managed role name.
+# Users never see it; we use it to identify roles this bot created.
+ROLE_TAG = "\u2060"  # WORD JOINER — zero-width, invisible in Discord
 TIMEOUT  = 120  # seconds per DM question
 
 COLOR_PRESETS: dict[str, int] = {
@@ -92,9 +94,14 @@ class RoleWizardView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         member: discord.Member = interaction.user  # type: ignore
+        guild  = interaction.guild
 
         # Acknowledge the interaction immediately so Discord doesn't show an error
         await interaction.response.defer(ephemeral=True)
+
+        if guild is None:
+            await interaction.followup.send("this only works inside a server.", ephemeral=True)
+            return
 
         if member.id in self.cog._active:
             await interaction.followup.send(
@@ -103,7 +110,7 @@ class RoleWizardView(discord.ui.View):
             return
 
         # Start wizard as a background task
-        self.cog.bot.loop.create_task(self.cog._wizard(member, interaction.guild))
+        asyncio.create_task(self.cog._wizard(member, guild))
 
 
 # ── cog ──────────────────────────────────────────────────────────────────────
@@ -178,7 +185,7 @@ class Roles(commands.Cog):
             return
 
         def dm_check(m: discord.Message) -> bool:
-            return m.author.id == member.id and isinstance(m.channel, discord.DMChannel)
+            return m.author.id == member.id and m.channel.id == dm.id
 
         async def ask(prompt: str) -> str | None:
             """Send a DM prompt and return the stripped reply, or None on timeout/cancel."""
@@ -198,7 +205,7 @@ class Roles(commands.Cog):
         existing = _find_managed_role(member)
 
         if existing:
-            raw_existing_name = existing.name.replace(ROLE_TAG + " ", "")
+            raw_existing_name = existing.name.replace(ROLE_TAG, "").strip()
             reply = await ask(
                 f"hey, you already have a role called \"{raw_existing_name}\". "
                 f"do you want to change it? say yes or no."
@@ -252,7 +259,7 @@ class Roles(commands.Cog):
         hoisted = hoist_reply.lower() in ("yes", "y")
 
         # ── apply ─────────────────────────────────────────────────────────────
-        full_name  = f"{ROLE_TAG} {name_raw}"
+        full_name  = f"{name_raw}{ROLE_TAG}"  # sentinel is appended, invisible to users
         colour_obj = discord.Colour(colour_int)
 
         try:
@@ -273,7 +280,7 @@ class Roles(commands.Cog):
                     reason=f"custom decorative role for {member}",
                 )
                 # Place just above @everyone
-                await guild.edit_role_positions({role: 1})
+                await guild.edit_role_positions([(role, 1)])
                 await member.add_roles(role, reason="custom decorative role")
 
         except discord.Forbidden:
