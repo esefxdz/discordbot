@@ -123,16 +123,11 @@ class Fun(commands.Cog):
         responses = ["It is certain.", "It is decidedly so.", "Without a doubt.", "Yes - definitely.", "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.", "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.", "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.", "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.", "Very doubtful."]
         await ctx.reply(f'🎱 {random.choice(responses)}')
 
-    # Slot machine
     @commands.command()
     async def slots(self, ctx):
         emojis = ['🍎', '🍒', '🍇', '💎', '🔔', '🍋']
         a, b, c = random.choice(emojis), random.choice(emojis), random.choice(emojis)
-        result = f'[ {a} | {b} | {c} ]'
-        if a == b == c:
-            await ctx.reply(f'{result}\n🎉 **JACKPOT!** You win!')
-        else:
-            await ctx.reply(f'{result}\nBetter luck next time!')
+        await ctx.reply(f'[ {a} | {b} | {c} ]')
 
     # Rock, Paper, Scissors
     @commands.command()
@@ -156,23 +151,6 @@ class Fun(commands.Cog):
             
         await ctx.reply(f"I chose {bot_choice}. {result}")
 
-    # Fishing game
-    @commands.command()
-    async def fish(self, ctx):
-        fishes = [('🐟', 50), ('🐠', 30), ('🐡', 15), ('🦈', 4), ('🐉', 1)]
-        population = [f[0] for f in fishes]
-        weights = [f[1] for f in fishes]
-        
-        catch = random.choices(population, weights=weights, k=1)[0]
-        
-        if catch == '🐉':
-            await ctx.reply(f'🎣 You cast your line and caught a **MYTHICAL DRAGON** {catch}!!')
-        elif catch == '🦈':
-            await ctx.reply(f'🎣 You cast your line and caught a **RARE SHARK** {catch}!')
-        else:
-            await ctx.reply(f'🎣 You cast your line and caught a {catch}')
-
-    # Love meter / Ship
     @commands.command()
     async def ship(self, ctx, user1: str, user2: str = None):
         if user2 is None:
@@ -180,19 +158,7 @@ class Fun(commands.Cog):
             user1 = ctx.author.mention
             
         percentage = random.randint(0, 100)
-        
-        if percentage == 100:
-            msg = "True love! 💖"
-        elif percentage >= 75:
-            msg = "Looking good! 💕"
-        elif percentage >= 50:
-            msg = "There is potential! 💛"
-        elif percentage >= 25:
-            msg = "Might need some work... 💔"
-        else:
-            msg = "Yikes... 💀"
-            
-        await ctx.reply(f"🛳️ **Ship:** {user1} x {user2}\n**Compatibility:** {percentage}%\n{msg}")
+        await ctx.reply(f"🛳️ **Ship:** {user1} x {user2}\n**Compatibility:** {percentage}%")
 
     # 10 Pull Gacha (5% Purple, 95% Blue)
     @commands.command()
@@ -204,18 +170,10 @@ class Fun(commands.Cog):
             else:
                 results.append('🟦')
                 
-        row1 = "".join(results[0:5])
-        row2 = "".join(results[5:10])
+        row1 = " ".join(results[0:5])
+        row2 = " ".join(results[5:10])
         
-        purples = results.count('🟪')
-        
-        msg = f"**10x Pull Results:**\n{row1}\n{row2}"
-        if purples > 0:
-            msg += f"\n\nWow! You got {purples} purple(s)! 🎉"
-        else:
-            msg += f"\n\nAll blues... better luck next time. 😔"
-            
-        await ctx.reply(msg)
+        await ctx.reply(f"{row1}\n{row2}")
 
 
 async def setup(bot):
