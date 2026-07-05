@@ -3,6 +3,8 @@ import discord
 import random
 import asyncio
 import logging
+import json
+from pathlib import Path
 from collections import deque
 from discord.ext import commands
 
@@ -15,6 +17,7 @@ C_OK     = 0x50FA7B   # green  – success
 C_WARN   = 0xFFB86C   # orange – warnings / loop
 C_ERR    = 0xFF5555   # red    – errors
 C_HIST   = 0x6272A4   # muted  – history
+C_RADIO  = 0xFF79C6   # pink  – radio
 
 LOOP_OFF   = 0
 LOOP_TRACK = 1
@@ -26,6 +29,9 @@ LOOP_LABEL = {
     LOOP_QUEUE: "🔁 Queue",
 }
 
+MODE_MUSIC = "music"
+MODE_RADIO = "radio"
+
 # ── per-guild state ──────────────────────────────────────────────────────────
 class GuildState:
     def __init__(self):
@@ -34,6 +40,7 @@ class GuildState:
         self.loop:     int                = LOOP_OFF
         self.autoplay: bool               = False
         self.current:  wavelink.Playable | None = None
+        self.mode:     str | None         = None
 
     def push_history(self, track: wavelink.Playable):
         self.history.insert(0, track)
@@ -68,12 +75,115 @@ def is_dj():
         return False
     return commands.check(predicate)
 
+# ── UI views ─────────────────────────────────────────────────────────────────
+class _CategoryView(discord.ui.View):
+    """Step 1: buttons for each radio category."""
+    def __init__(self, bot: commands.Bot, stations: dict, timeout: float = 120.0):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.stations = stations
+        self.message: discord.Message | None = None
+
+        for i, category in enumerate(stations.keys()):
+            # Truncate long category names for button labels (max 80 chars)
+            label = category[:80]
+            btn = discord.ui.Button(
+                label=label,
+                style=discord.ButtonStyle.primary,
+                row=i // 5,  # 5 buttons per row
+            )
+            btn.callback = self._make_category_callback(category)
+            self.add_item(btn)
+
+    def _make_category_callback(self, category: str):
+        async def callback(interaction: discord.Interaction):
+            station_list = self.stations[category]
+            view = _StationSelect(self.bot, category, station_list, interaction, timeout=self.timeout)
+            embed = discord.Embed(
+                title=f"📻 {category}",
+                description="Pick a station from the dropdown below:",
+                color=C_RADIO,
+            )
+            await interaction.response.edit_message(embed=embed, view=view)
+            view.message = interaction.message
+        return callback
+
+    async def on_timeout(self):
+        if self.message:
+            try:
+                for child in self.children:
+                    child.disabled = True
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+
+class _StationSelect(discord.ui.View):
+    """Step 2: dropdown to pick a specific station."""
+    def __init__(self, bot: commands.Bot, category: str, stations: list[dict], interaction: discord.Interaction, timeout: float = 120.0):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.category = category
+        self.stations = stations
+        self._interaction = interaction
+        self.message: discord.Message | None = None
+        self._picked: dict | None = None
+        self._done = asyncio.Event()
+
+        options = []
+        for s in stations:
+            label = s["name"][:100]  # Discord limit
+            desc = s["desc"][:100] if s["desc"] else "\u200b"  # zero-width space if empty
+            options.append(discord.SelectOption(label=label, description=desc, value=s["name"]))
+
+        select = discord.ui.Select(
+            placeholder="Choose a station…",
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: discord.Interaction):
+        station_name = interaction.data["values"][0]  # type: ignore
+        for s in self.stations:
+            if s["name"] == station_name:
+                self._picked = s
+                break
+        # Disable the dropdown immediately
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(view=self)
+
+        # Do the actual radio playback
+        cog = self.bot.get_cog("Music")
+        if cog and self._picked:
+            await cog._play_radio_stream(interaction, self.category, self._picked)
+        self._done.set()
+        self.stop()
+
+    async def on_timeout(self):
+        if self.message:
+            try:
+                for child in self.children:
+                    child.disabled = True
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+
 # ── cog ──────────────────────────────────────────────────────────────────────
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot    = bot
         self._states: dict[int, GuildState] = {}
         self._voice_channels: dict[int, int] = {}  # guild_id → channel_id for disconnect cleanup
+        self._locks: dict[int, asyncio.Lock] = {}
+
+        # Load radio stations
+        stations_path = Path(__file__).parent / "radio_stations.json"
+        with open(stations_path, "r", encoding="utf-8") as f:
+            self._radio_stations: dict[str, list[dict]] = json.load(f)
+        log.info(f"Loaded radio stations: {sum(len(v) for v in self._radio_stations.values())} stations in {len(self._radio_stations)} categories")
 
     def state(self, guild_id: int) -> GuildState:
         if guild_id not in self._states:
@@ -87,14 +197,22 @@ class Music(commands.Cog):
             return vc
         return None
 
+    def _lock(self, guild_id: int) -> asyncio.Lock:
+        """Get or create a per-guild asyncio.Lock."""
+        if guild_id not in self._locks:
+            self._locks[guild_id] = asyncio.Lock()
+        return self._locks[guild_id]
+
     # ── channel status ────────────────────────────────────────────────────────
-    async def _set_channel_status(self, player: wavelink.Player, track: wavelink.Playable | None):
-        """Set (or clear) the voice channel status to reflect the current track."""
+    async def _set_channel_status(self, player: wavelink.Player, track: wavelink.Playable | None = None, *, title: str | None = None):
+        """Set (or clear) the voice channel status. Pass *title* for radio; otherwise uses track.title."""
         channel = player.channel
         if channel is None:
             return
         try:
-            if track:
+            if title is not None:
+                status = f"📻 {title}"[:500]
+            elif track is not None:
                 status = f"🎵 {track.title}"[:500]
             else:
                 status = None
@@ -141,6 +259,7 @@ class Music(commands.Cog):
             st = self._states.pop(guild_id, None)
             if st:
                 st.queue.clear()
+            self._locks.pop(guild_id, None)
             await self._clear_channel_status(guild_id)
 
     # ── track end → advance queue ─────────────────────────────────────────────
@@ -151,6 +270,12 @@ class Music(commands.Cog):
             return
 
         st = self.state(player.guild.id)
+
+        # Radio mode: stream ended — just stop
+        if st.mode == MODE_RADIO:
+            st.mode = None
+            await self._set_channel_status(player)
+            return
 
         if st.loop == LOOP_TRACK and st.current:
             await player.play(st.current)
@@ -173,7 +298,8 @@ class Music(commands.Cog):
             await player.set_autoplay(wavelink.AutoPlayMode.enabled)
         else:
             st.current = None
-            await self._set_channel_status(player, None)
+            st.mode = None
+            await self._set_channel_status(player)
 
     # ── track start → update status ───────────────────────────────────────────
     @commands.Cog.listener()
@@ -183,7 +309,9 @@ class Music(commands.Cog):
             return
         st = self.state(player.guild.id)
         st.current = payload.track
-        await self._set_channel_status(player, st.current)
+        # Only auto-update status for music mode (radio sets its own title)
+        if st.mode != MODE_RADIO:
+            await self._set_channel_status(player, st.current)
 
     # ── !play ─────────────────────────────────────────────────────────────────
     @commands.command(aliases=["p"])
@@ -193,79 +321,89 @@ class Music(commands.Cog):
             return await ctx.reply(embed=discord.Embed(
                 description="❌ Join a voice channel first.", color=C_ERR))
 
-        vc = self._get_player(ctx)
-        if not vc:
-            vc = await ctx.author.voice.channel.connect(cls=wavelink.Player)
-            vc.autoplay = wavelink.AutoPlayMode.disabled
-            vc.inactive_timeout = None
-            # Track channel for disconnect cleanup
-            self._voice_channels[ctx.guild.id] = ctx.author.voice.channel.id
-
         st = self.state(ctx.guild.id)
 
-        async with ctx.typing():
-            results = await wavelink.Playable.search(query)
-
-        if not results:
+        # Mode check: refuse if radio is active
+        if st.mode == MODE_RADIO:
             return await ctx.reply(embed=discord.Embed(
-                description="❌ Nothing found.", color=C_ERR))
+                description="📻 Radio is currently active. Use `!stop` first to switch back to music.",
+                color=C_WARN))
 
-        # playlist
-        if isinstance(results, wavelink.Playlist):
-            tracks = list(results.tracks)
-            for t in tracks:
-                t.extras = {"requester_id": ctx.author.id}
-                st.queue.append(t)
+        async with self._lock(ctx.guild.id):
+            vc = self._get_player(ctx)
+            if not vc:
+                vc = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+                vc.autoplay = wavelink.AutoPlayMode.disabled
+                vc.inactive_timeout = None
+                self._voice_channels[ctx.guild.id] = ctx.author.voice.channel.id
 
-            # Start the first track if nothing is playing
-            if not vc.playing and not vc.paused and st.queue:
-                st.current = st.queue.popleft()
-                await vc.play(st.current)
-                await self._set_channel_status(vc, st.current)
+            async with ctx.typing():
+                results = await wavelink.Playable.search(query)
 
-            embed = discord.Embed(
-                title="📋  Playlist Queued",
-                description=f"**{results.name}**",
-                color=C_QUEUE,
-            )
-            embed.add_field(name="Tracks", value=str(len(tracks)))
-            embed.add_field(name="Added by", value=ctx.author.mention)
-            await ctx.reply(embed=embed)
+            if not results:
+                return await ctx.reply(embed=discord.Embed(
+                    description="❌ Nothing found.", color=C_ERR))
 
-        else:
-            track = results[0]
-            track.extras = {"requester_id": ctx.author.id}
+            # playlist
+            if isinstance(results, wavelink.Playlist):
+                tracks = list(results.tracks)
+                for t in tracks:
+                    t.extras = {"requester_id": ctx.author.id}
+                    st.queue.append(t)
 
-            if vc.playing or vc.paused:
-                st.queue.append(track)
+                # Start the first track if nothing is playing
+                if not vc.playing and not vc.paused and st.queue:
+                    st.current = st.queue.popleft()
+                    await vc.play(st.current)
+                    await self._set_channel_status(vc, st.current)
+
+                st.mode = MODE_MUSIC
+
                 embed = discord.Embed(
-                    title="➕  Added to Queue",
-                    description=f"**{track.title}**",
+                    title="📋  Playlist Queued",
+                    description=f"**{results.name}**",
                     color=C_QUEUE,
                 )
-                embed.add_field(name="Duration",  value=fmt_duration(track.length))
-                embed.add_field(name="Position",  value=f"#{len(st.queue)}")
+                embed.add_field(name="Tracks", value=str(len(tracks)))
+                embed.add_field(name="Added by", value=ctx.author.mention)
+                await ctx.reply(embed=embed)
+
+            else:
+                track = results[0]
+                track.extras = {"requester_id": ctx.author.id}
+
+                if vc.playing or vc.paused:
+                    st.queue.append(track)
+                    embed = discord.Embed(
+                        title="➕  Added to Queue",
+                        description=f"**{track.title}**",
+                        color=C_QUEUE,
+                    )
+                    embed.add_field(name="Duration",  value=fmt_duration(track.length))
+                    embed.add_field(name="Position",  value=f"#{len(st.queue)}")
+                    embed.add_field(name="Requested by", value=ctx.author.mention)
+                    if track.artwork:
+                        embed.set_thumbnail(url=track.artwork)
+                    return await ctx.reply(embed=embed)
+
+                st.current = track
+                await vc.play(track)
+                await self._set_channel_status(vc, track)
+
+                st.mode = MODE_MUSIC
+
+                embed = discord.Embed(
+                    title="▶️  Now Playing",
+                    description=f"**{track.title}**",
+                    color=C_MAIN,
+                )
+                embed.add_field(name="Duration",     value=fmt_duration(track.length))
                 embed.add_field(name="Requested by", value=ctx.author.mention)
+                embed.add_field(name="Loop",         value=LOOP_LABEL[st.loop], inline=True)
+                embed.add_field(name="Autoplay",     value="On" if st.autoplay else "Off", inline=True)
                 if track.artwork:
                     embed.set_thumbnail(url=track.artwork)
-                return await ctx.reply(embed=embed)
-
-            st.current = track
-            await vc.play(track)
-            await self._set_channel_status(vc, track)
-
-            embed = discord.Embed(
-                title="▶️  Now Playing",
-                description=f"**{track.title}**",
-                color=C_MAIN,
-            )
-            embed.add_field(name="Duration",     value=fmt_duration(track.length))
-            embed.add_field(name="Requested by", value=ctx.author.mention)
-            embed.add_field(name="Loop",         value=LOOP_LABEL[st.loop], inline=True)
-            embed.add_field(name="Autoplay",     value="On" if st.autoplay else "Off", inline=True)
-            if track.artwork:
-                embed.set_thumbnail(url=track.artwork)
-            await ctx.reply(embed=embed)
+                await ctx.reply(embed=embed)
 
     # ── !pause / !resume ──────────────────────────────────────────────────────
     @commands.command()
@@ -303,20 +441,29 @@ class Music(commands.Cog):
     @commands.command(aliases=["leave", "disconnect"])
     @is_dj()
     async def stop(self, ctx: commands.Context):
-        """Stop playback, clear the queue, and disconnect from voice."""
+        """Stop playback (music or radio), clear the queue, and disconnect from voice."""
         st = self.state(ctx.guild.id)
+        current_mode = st.mode
+
         st.queue.clear()
         st.current = None
         st.loop = LOOP_OFF
         st.autoplay = False
+        st.mode = None
 
         vc = self._get_player(ctx)
         if vc:
-            await self._set_channel_status(vc, None)
+            await self._set_channel_status(vc)
             await vc.disconnect()
 
         self._voice_channels.pop(ctx.guild.id, None)
-        await ctx.reply(embed=discord.Embed(description="⏹️ Stopped and disconnected.", color=C_OK))
+        self._locks.pop(ctx.guild.id, None)
+
+        if current_mode == MODE_RADIO:
+            msg = "⏹️ Stopped radio and disconnected."
+        else:
+            msg = "⏹️ Stopped and disconnected."
+        await ctx.reply(embed=discord.Embed(description=msg, color=C_OK))
 
     # ── !seek ─────────────────────────────────────────────────────────────────
     @commands.command()
@@ -516,6 +663,114 @@ class Music(commands.Cog):
         )
         await ctx.reply(embed=embed)
 
+    # ── !radio ────────────────────────────────────────────────────────────────
+    @commands.command()
+    async def radio(self, ctx: commands.Context):
+        """Browse and play radio stations with a two-step interactive picker."""
+        if not ctx.author.voice:
+            return await ctx.reply(embed=discord.Embed(
+                description="❌ Join a voice channel first.", color=C_ERR))
+
+        st = self.state(ctx.guild.id)
+
+        # Mode check: refuse if music is active
+        if st.mode == MODE_MUSIC and (st.current or st.queue):
+            return await ctx.reply(embed=discord.Embed(
+                description="🎵 Music is currently playing. Use `!stop` first to switch to radio.",
+                color=C_WARN))
+
+        # Step 1: show category buttons
+        view = _CategoryView(self.bot, self._radio_stations)
+        embed = discord.Embed(
+            title="📻  Radio — Choose a Category",
+            description="Select a genre to browse stations:",
+            color=C_RADIO,
+        )
+        await ctx.reply(embed=embed, view=view)
+
+    # ── radio playback helper (called from _StationSelect callback) ──────────
+    async def _play_radio_stream(self, interaction: discord.Interaction, category: str, station: dict):
+        """Connect, play a radio stream, and set mode. Called from the station picker callback."""
+        guild = interaction.guild
+        if guild is None:
+            return
+
+        member = guild.get_member(interaction.user.id)
+        if member is None or member.voice is None:
+            await interaction.followup.send(
+                embed=discord.Embed(description="❌ You must be in a voice channel.", color=C_ERR),
+                ephemeral=True,
+            )
+            return
+
+        st = self.state(guild.id)
+
+        async with self._lock(guild.id):
+            # Connect or reuse existing player
+            vc = guild.voice_client
+            if not isinstance(vc, wavelink.Player):
+                try:
+                    vc = await member.voice.channel.connect(cls=wavelink.Player)
+                except Exception as e:
+                    await interaction.followup.send(
+                        embed=discord.Embed(description=f"❌ Failed to connect: {e}", color=C_ERR),
+                        ephemeral=True,
+                    )
+                    return
+                vc.autoplay = wavelink.AutoPlayMode.disabled
+                vc.inactive_timeout = None
+                self._voice_channels[guild.id] = member.voice.channel.id
+
+            # Stop anything currently playing
+            if vc.playing or vc.paused:
+                await vc.skip()
+
+            # Resolve and play the stream URL via Lavalink
+            try:
+                results = await wavelink.Playable.search(station["url"])
+                if not results:
+                    await interaction.followup.send(
+                        embed=discord.Embed(
+                            description=f"❌ Could not resolve stream: `{station['url']}`\n"
+                                         "Lavalink may need the **LavaSrc** plugin for direct HTTP/Icecast URLs.",
+                            color=C_ERR,
+                        ),
+                        ephemeral=True,
+                    )
+                    return
+                track = results[0]
+            except Exception as e:
+                await interaction.followup.send(
+                    embed=discord.Embed(description=f"❌ Failed to load stream: {e}", color=C_ERR),
+                    ephemeral=True,
+                )
+                return
+
+            await vc.play(track)
+
+            # Set mode and clear any music state
+            st.queue.clear()
+            st.current = track
+            st.loop = LOOP_OFF
+            st.autoplay = False
+            st.mode = MODE_RADIO
+
+            # Set channel status with the JSON station name
+            await self._set_channel_status(vc, title=station["name"])
+
+            # Send now-playing embed
+            embed = discord.Embed(
+                title="📻  Now Playing",
+                description=f"### {station['name']}",
+                color=C_RADIO,
+            )
+            if station["desc"]:
+                embed.add_field(name="Description", value=station["desc"], inline=False)
+            embed.add_field(name="Category", value=category, inline=True)
+            embed.add_field(name="Source", value=station["url"], inline=True)
+            embed.set_footer(text="yuuka radio · use !stop to disconnect")
+            await interaction.followup.send(embed=embed)
+
     # ── !music ────────────────────────────────────────────────────────────────
     @commands.command()
     async def music(self, ctx: commands.Context):
@@ -526,6 +781,10 @@ class Music(commands.Cog):
             "`!pause` · `!resume` · `!skip` · `!stop`\n"
             "`!seek <1:30>` · `!looptrack` · `!loopqueue`\n"
             "`!autoplay`"
+        ), inline=False)
+        embed.add_field(name="Radio", value=(
+            "`!radio` — Browse & play radio stations\n"
+            "Use `!stop` to stop either music or radio"
         ), inline=False)
         embed.add_field(name="Queue", value=(
             "`!queue` · `!q`\n"

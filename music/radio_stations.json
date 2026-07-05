@@ -1,0 +1,55 @@
+{
+  "Ambient, Lo-Fi & Chill (all reliable — genre is structurally beat-free/no-talk)": [
+    {"name": "9128", "desc": "Ambient/drone", "url": "https://streams.radio.co/s0aa1e6f4a/listen"},
+    {"name": "a.m. Ambient", "desc": "daytime ambient", "url": "http://radio.stereoscenic.com/ama-h"},
+    {"name": "Ambient Sleeping Pill", "desc": "beat-free sleep/focus", "url": "http://radio.stereoscenic.com/asp-h"},
+    {"name": "Ambient.FM", "desc": "solar-powered ambient", "url": "https://phoebe.streamerr.co:4140/ambient.mp3"},
+    {"name": "ChillTraxx", "desc": "downtempo/chillout", "url": "https://streamssleu.chilltrax.com/stream"},
+    {"name": "CodeRadio", "desc": "jazzy coding beats (freeCodeCamp)", "url": "https://coderadio-admin-v2.freecodecamp.org/listen/coderadio/radio.mp3"},
+    {"name": "Dinamo.FM - Sleep", "desc": "ambient/downtempo", "url": "http://channels.dinamo.fm/sleep-mp3"},
+    {"name": "Echoes of Bluemars - Cryosleep", "desc": "beatless drone", "url": "http://streams.echoesofbluemars.org:8000/cryosleep"},
+    {"name": "Moon Phase Radio - Ambient", "desc": "", "url": "https://cp12.serverse.com/proxy/moonphase/stream"},
+    {"name": "Moss Garden", "desc": "ambient + field recordings", "url": "https://radio.moss.garden/listen/moss_garden/radio.mp3"},
+    {"name": "Nordic Lodge", "desc": "downtempo/lounge", "url": "http://radio.streemlion.com:1160/stream"},
+    {"name": "NTS - Slow Focus", "desc": "drone/ambient/ragas", "url": "https://stream-mixtape-geo.ntslive.net/mixtape"},
+    {"name": "SomaFM - Drone Zone", "desc": "atmospheric/minimal beats", "url": "https://somafm.com/dronezone256.pls"},
+    {"name": "SomaFM - Groove Salad", "desc": "ambient/downtempo", "url": "https://somafm.com/groovesalad256.pls"}
+  ],
+  "Electronic / Phonk / Synthwave / City Pop": [
+    {"name": "Bad Radio", "desc": "phonk/dark trap", "url": "http://server.badradio.biz:8000/stream"},
+    {"name": "Nightride FM", "desc": "synthwave/darksynth/chillsynth", "url": "https://stream.nightride.fm/nightride.mp3"},
+    {"name": "Nightwave Plaza", "desc": "vaporwave/future funk/city pop", "url": "https://radio.plaza.one/ogg"},
+    {"name": "NTS - Poolside", "desc": "Balearic/boogie/sophisti-pop", "url": "https://stream-mixtape-geo.ntslive.net/mixtape4"},
+    {"name": "Poolsuite FM", "desc": "disco/yacht rock/Balearic", "url": "https://s5.radio.co/sc9cb59935/listen"},
+    {"name": "Dub Ninja", "desc": "dub techno/ambient for focus", "url": "https://dub.ninja/live"},
+    {"name": "Rekt Network", "desc": "DnB/dubstep/dark techno", "url": "https://stream.rekt.network/hls/rekt/aac_hifi.m3u8"},
+    {"name": "Limbik Frequencies", "desc": "bass-heavy experimental", "url": "https://limbikfreq.com/listen/limbik_frequencies/320.mp3"}
+  ],
+  "Video Game, Chiptune & Soundtracks (all automated by nature)": [
+    {"name": "CVGM", "desc": "video game/demoscene/computer music", "url": "https://slacker.cvgm.net/cvgm192"},
+    {"name": "Gensokyo Radio", "desc": "Touhou fan music", "url": "https://stream.gensokyoradio.net/3"},
+    {"name": "Gyusyabu", "desc": "retro Japanese PC game music", "url": "http://gyusyabu.ddo.jp:8000/;stream.mp3"},
+    {"name": "Kohina", "desc": "8-bit/16-bit computer music", "url": "https://kohina.duckdns.org/icecast/stream.ogg"},
+    {"name": "No Life Radio", "desc": "game music, 8-bit to modern", "url": "https://listen.nolife-radio.com/stream"},
+    {"name": "RadioSEGA", "desc": "Sega game music/remixes", "url": "http://content.radiosega.net:8006/live"},
+    {"name": "Slay Radio", "desc": "C64 remixes", "url": "http://relay4.slayradio.org:8300/"},
+    {"name": "Streaming Soundtracks", "desc": "movie/TV/anime scores", "url": "http://hi5.streamingsoundtracks.com/;"}
+  ],
+  "Anime / J-Pop / Asian": [
+    {"name": "listen.moe", "desc": "anime & J-Pop", "url": "https://listen.moe/stream"},
+    {"name": "J-Club Bandstand - Jazz Sakura", "desc": "Japanese jazz", "url": "https://kathy.torontocast.com:3330/;"},
+    {"name": "AshiyaRadio", "desc": "jazz/bossa nova, Kobe", "url": "https://s3.radio.co/sc8d895604/listen"},
+    {"name": "J1 Radio - Gold", "desc": "Japanese pop/enka", "url": "http://gold.j1fm.tokyo/"}
+  ],
+  "Jazz (mostly automated rotation, low talk risk)": [
+    {"name": "FIP Jazz", "desc": "", "url": "https://icecast.radiofrance.fr/fipjazz-hifi.aac"},
+    {"name": "The Jazz Groove", "desc": "laid-back/vocal jazz", "url": "http://east-mp3-128.streamthejazzgroove.com/stream"},
+    {"name": "Jazz24", "desc": "jazz/blues/funk/Latin", "url": "https://knkx-live-a.edge.audiocdn.com/6285_256k"},
+    {"name": "SomaFM - Sonic Universe", "desc": "avant-garde jazz", "url": "https://somafm.com/sonicuniverse256.pls"}
+  ],
+  "Classical (automated catalog stations — skip ones mentioning \"live hosts\")": [
+    {"name": "Classical California", "desc": "", "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/KDFCFMAAC.aac"},
+    {"name": "Linn Classical", "desc": "audiophile classical", "url": "http://radio.linn.co.uk:8004/stream"},
+    {"name": "WQXR Q2", "desc": "contemporary/experimental classical", "url": "http://q2stream.wqxr.org/q2"}
+  ]
+}
