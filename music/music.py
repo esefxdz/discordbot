@@ -76,6 +76,21 @@ class Music(commands.Cog):
             self._states[guild_id] = GuildState()
         return self._states[guild_id]
 
+    # ── channel status ────────────────────────────────────────────────────────
+    async def _set_channel_status(self, player: wavelink.Player, track: wavelink.Playable | None):
+        """Set (or clear) the voice channel status to reflect the current track."""
+        channel = player.channel
+        if channel is None:
+            return
+        try:
+            if track:
+                status = f"🎵 {track.title}"
+            else:
+                status = ""
+            await channel.set_status(status)
+        except Exception:
+            pass  # silently ignore missing permissions or unsupported guild
+
     # ── connect lavalink ─────────────────────────────────────────────────────
     @commands.Cog.listener()
     async def on_ready(self):
@@ -94,6 +109,7 @@ class Music(commands.Cog):
 
         if st.loop == LOOP_TRACK and st.current:
             await player.play(st.current)
+            await self._set_channel_status(player, st.current)
             return
 
         if st.loop == LOOP_QUEUE and st.current:
@@ -106,11 +122,13 @@ class Music(commands.Cog):
             next_track = st.queue.popleft()
             st.current = next_track
             await player.play(next_track)
+            await self._set_channel_status(player, next_track)
         elif st.autoplay:
             # wavelink built-in autoplay
             await player.set_autoplay(wavelink.AutoPlayMode.enabled)
         else:
             st.current = None
+            await self._set_channel_status(player, None)
 
     # ── !play ─────────────────────────────────────────────────────────────────
     @commands.command(aliases=["p"])
@@ -175,6 +193,7 @@ class Music(commands.Cog):
 
             st.current = track
             await vc.play(track)
+            await self._set_channel_status(vc, track)
 
             embed = discord.Embed(
                 title="▶️  Now Playing",

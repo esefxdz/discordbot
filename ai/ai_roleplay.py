@@ -323,7 +323,7 @@ class AIRoleplay(commands.Cog):
         persona = self.active_personas.get(cid, 'yuuka')
         prompt = self.get_prompt(cid)
 
-        # VISION SUPPORT
+        # VISION SUPPORT DOESNT WORK LOL
         user_content = [{"type": "text", "text": f'{message.author.display_name}: {content}'}]
         has_images = False
         
@@ -354,7 +354,7 @@ class AIRoleplay(commands.Cog):
         api_msgs += list(mem)
         model_to_use = self.active_model  # always MODEL_FLASH or MODEL_PRO, never swapped
 
-        #VISION SUPPORT END
+        #VISION SUPPORT END STILL DOESNT WORK LOL
 
         # ----- thinking mode (per channel, correct DeepSeek params) -----
         # The "thinking" key must be sent EVERY request — the API defaults
