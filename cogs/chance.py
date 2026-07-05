@@ -6,12 +6,27 @@ class Fun(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # this command lists all the fun commands, not an actualy fun command##
     @commands.command()
     async def fun(self, ctx):
-        fun_commands = [f'!{cmd.name}' for cmd in self.get_commands() if cmd.name != 'fun']
-        await ctx.reply('\n'.join(sorted(fun_commands)))
-    ######################################################################
+        msg = (
+            "Dice commands:\n"
+            "!dice - rolls a 6 sided die\n"
+            "!d4, !d8, !d10, !d12, !d20, !d100 - rolls a die with that many sides\n"
+            "!roll 2d6 - rolls two 6 sided dice. change numbers to whatever you want\n"
+            "!roll 20 - rolls a single 20 sided die\n\n"
+            "Other commands:\n"
+            "!coin - flips a coin\n"
+            "!rps <choice> - rock paper scissors\n"
+            "!roulette - russian roulette\n"
+            "!pull - 10 pull gacha\n"
+            "!slots - slot machine\n"
+            "!ship @user - love meter\n"
+            "!pp - measures pp size\n"
+            "!rank - gives a random rank\n"
+            "!aura - calculates aura\n"
+            "!8ball <question> - magic 8 ball"
+        )
+        await ctx.reply(msg)
 
     # Flips a coin, returning Heads or Tails
     @commands.command()
