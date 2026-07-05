@@ -202,6 +202,12 @@ class Music(commands.Cog):
             self._locks[guild_id] = asyncio.Lock()
         return self._locks[guild_id]
 
+    def _is_current_track(self, st: GuildState, event_track: wavelink.Playable | None) -> bool:
+        """True if event_track is the same track currently stored in guild state."""
+        if st.current is None or event_track is None:
+            return False
+        return event_track.identifier == st.current.identifier
+
     # ── channel status ────────────────────────────────────────────────────────
     async def _set_channel_status(self, player: wavelink.Player, track: wavelink.Playable | None = None, *, title: str | None = None):
         """Set (or clear) the voice channel status. Pass *title* for radio; otherwise uses track.title."""
@@ -271,6 +277,11 @@ class Music(commands.Cog):
 
         st = self.state(player.guild.id)
 
+        # Ignore stale events for a track that is no longer current
+        # (e.g. track_end for an old radio stream arriving after a switch)
+        if not self._is_current_track(st, payload.track):
+            return
+
         if st.loop == LOOP_TRACK and st.current:
             await player.play(st.current)
             await self._set_channel_status(player, st.current)
@@ -306,6 +317,8 @@ class Music(commands.Cog):
             return
         st = self.state(player.guild.id)
         if st.mode == MODE_RADIO:
+            if not self._is_current_track(st, payload.track):
+                return
             log.warning(f"Radio stream exception in guild {player.guild.id}: {payload.exception}")
             await self._notify_radio_drop(player.guild.id)
             st.mode = None
@@ -318,6 +331,8 @@ class Music(commands.Cog):
             return
         st = self.state(player.guild.id)
         if st.mode == MODE_RADIO:
+            if not self._is_current_track(st, payload.track):
+                return
             log.warning(f"Radio stream stuck in guild {player.guild.id}, threshold {payload.threshold_ms}ms")
             await self._notify_radio_drop(player.guild.id)
             st.mode = None
