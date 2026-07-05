@@ -3,10 +3,9 @@ import discord
 import random
 import asyncio
 import logging
+from discord.ext import commands
 
 log = logging.getLogger(__name__)
-from discord.ext import commands
-from collections import deque
 
 # ── colours & assets ────────────────────────────────────────────────────────
 C_MAIN   = 0x8BE9FD   # cyan  – now playing
@@ -29,7 +28,7 @@ LOOP_LABEL = {
 # ── per-guild state ──────────────────────────────────────────────────────────
 class GuildState:
     def __init__(self):
-        self.queue:    deque              = deque()
+        self.queue:    list               = []
         self.history:  list               = []   # last 10 tracks
         self.loop:     int                = LOOP_OFF
         self.autoplay: bool               = False
@@ -73,11 +72,19 @@ class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot    = bot
         self._states: dict[int, GuildState] = {}
+        self._voice_channels: dict[int, int] = {}  # guild_id → channel_id for disconnect cleanup
 
     def state(self, guild_id: int) -> GuildState:
         if guild_id not in self._states:
             self._states[guild_id] = GuildState()
         return self._states[guild_id]
+
+    def _get_player(self, ctx: commands.Context) -> wavelink.Player | None:
+        """Get the wavelink Player for a context, or None."""
+        vc = ctx.voice_client
+        if isinstance(vc, wavelink.Player):
+            return vc
+        return None
 
     # ── channel status ────────────────────────────────────────────────────────
     async def _set_channel_status(self, player: wavelink.Player, track: wavelink.Playable | None):
@@ -99,12 +106,41 @@ class Music(commands.Cog):
         except Exception:
             log.warning(f"Failed to set voice channel status in {player.guild.id}", exc_info=True)
 
+    async def _clear_channel_status(self, guild_id: int):
+        """Clear voice channel status after the bot was disconnected."""
+        channel_id = self._voice_channels.pop(guild_id, None)
+        if channel_id is None:
+            return
+        try:
+            route = discord.http.Route(
+                'PUT',
+                '/channels/{channel_id}/voice-status',
+                channel_id=channel_id,
+            )
+            await self.bot.http.request(route, json={'status': None})
+        except Exception:
+            log.warning(f"Failed to clear voice channel status in guild {guild_id}", exc_info=True)
+
     # ── connect lavalink ─────────────────────────────────────────────────────
     @commands.Cog.listener()
     async def on_ready(self):
         node = wavelink.Node(uri="http://127.0.0.1:2333", password="yuukabot")
         await wavelink.Pool.connect(nodes=[node], client=self.bot)
-        print("Wavelink connected to Lavalink")
+        log.info("Wavelink connected to Lavalink")
+
+    # ── voice state update → clear status on disconnect ──────────────────────
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        if member.id != self.bot.user.id:
+            return
+        # Bot was in a channel and left (kicked, moved, or disconnected)
+        if before.channel is not None and after.channel is None:
+            guild_id = member.guild.id
+            # Also clean up guild state
+            st = self._states.pop(guild_id, None)
+            if st:
+                st.queue.clear()
+            await self._clear_channel_status(guild_id)
 
     # ── track end → advance queue ─────────────────────────────────────────────
     @commands.Cog.listener()
@@ -127,7 +163,7 @@ class Music(commands.Cog):
             st.push_history(st.current)
 
         if st.queue:
-            next_track = st.queue.popleft()
+            next_track = st.queue.pop(0)
             st.current = next_track
             await player.play(next_track)
             await self._set_channel_status(player, next_track)
@@ -145,6 +181,7 @@ class Music(commands.Cog):
         if player is None:
             return
         st = self.state(player.guild.id)
+        st.current = payload.track
         await self._set_channel_status(player, st.current)
 
     # ── !play ─────────────────────────────────────────────────────────────────
@@ -155,11 +192,13 @@ class Music(commands.Cog):
             return await ctx.reply(embed=discord.Embed(
                 description="❌ Join a voice channel first.", color=C_ERR))
 
-        vc: wavelink.Player = ctx.voice_client  # type: ignore
+        vc = self._get_player(ctx)
         if not vc:
             vc = await ctx.author.voice.channel.connect(cls=wavelink.Player)
             vc.autoplay = wavelink.AutoPlayMode.disabled
             vc.inactive_timeout = None
+            # Track channel for disconnect cleanup
+            self._voice_channels[ctx.guild.id] = ctx.author.voice.channel.id
 
         st = self.state(ctx.guild.id)
 
@@ -174,12 +213,14 @@ class Music(commands.Cog):
         if isinstance(results, wavelink.Playlist):
             tracks = list(results.tracks)
             for t in tracks:
-                t.extras = {"requester": str(ctx.author)}
+                t.extras = {"requester_id": ctx.author.id}
                 st.queue.append(t)
-                if not vc.playing and not vc.paused and st.queue:
-                    st.current = st.queue.popleft()
-                    await vc.play(st.current)
-                    await self._set_channel_status(vc, st.current)
+
+            # Start the first track if nothing is playing
+            if not vc.playing and not vc.paused and st.queue:
+                st.current = st.queue.pop(0)
+                await vc.play(st.current)
+                await self._set_channel_status(vc, st.current)
 
             embed = discord.Embed(
                 title="📋  Playlist Queued",
@@ -192,7 +233,7 @@ class Music(commands.Cog):
 
         else:
             track = results[0]
-            track.extras = {"requester": str(ctx.author)}
+            track.extras = {"requester_id": ctx.author.id}
 
             if vc.playing or vc.paused:
                 st.queue.append(track)
@@ -229,36 +270,59 @@ class Music(commands.Cog):
     @commands.command()
     @is_dj()
     async def pause(self, ctx: commands.Context):
-        vc: wavelink.Player = ctx.voice_client  # type: ignore
+        vc = self._get_player(ctx)
         if vc and vc.playing:
             await vc.pause(True)
             await ctx.reply(embed=discord.Embed(description="⏸️ Paused.", color=C_OK))
+        else:
+            await ctx.reply(embed=discord.Embed(description="❌ Nothing is playing.", color=C_ERR))
 
     @commands.command()
     @is_dj()
     async def resume(self, ctx: commands.Context):
-        vc: wavelink.Player = ctx.voice_client  # type: ignore
+        vc = self._get_player(ctx)
         if vc and vc.paused:
             await vc.pause(False)
             await ctx.reply(embed=discord.Embed(description="▶️ Resumed.", color=C_OK))
+        else:
+            await ctx.reply(embed=discord.Embed(description="❌ Nothing is paused.", color=C_ERR))
 
     # ── !skip ─────────────────────────────────────────────────────────────────
     @commands.command()
     @is_dj()
     async def skip(self, ctx: commands.Context):
-        vc: wavelink.Player = ctx.voice_client  # type: ignore
+        vc = self._get_player(ctx)
         if vc and (vc.playing or vc.paused):
             await vc.skip()
             await ctx.reply(embed=discord.Embed(description="⏭️ Skipped.", color=C_OK))
         else:
             await ctx.reply(embed=discord.Embed(description="❌ Nothing to skip.", color=C_ERR))
 
+    # ── !stop / !leave ────────────────────────────────────────────────────────
+    @commands.command(aliases=["leave", "disconnect"])
+    @is_dj()
+    async def stop(self, ctx: commands.Context):
+        """Stop playback, clear the queue, and disconnect from voice."""
+        st = self.state(ctx.guild.id)
+        st.queue.clear()
+        st.current = None
+        st.loop = LOOP_OFF
+        st.autoplay = False
+
+        vc = self._get_player(ctx)
+        if vc:
+            await self._set_channel_status(vc, None)
+            await vc.disconnect()
+
+        self._voice_channels.pop(ctx.guild.id, None)
+        await ctx.reply(embed=discord.Embed(description="⏹️ Stopped and disconnected.", color=C_OK))
+
     # ── !seek ─────────────────────────────────────────────────────────────────
     @commands.command()
     @is_dj()
     async def seek(self, ctx: commands.Context, timestamp: str):
         """Seek to a timestamp. Format: 1:30 or 90 (seconds)."""
-        vc: wavelink.Player = ctx.voice_client  # type: ignore
+        vc = self._get_player(ctx)
         if not vc or not vc.playing:
             return await ctx.reply(embed=discord.Embed(
                 description="❌ Nothing is playing.", color=C_ERR))
@@ -303,7 +367,7 @@ class Music(commands.Cog):
     @is_dj()
     async def autoplay(self, ctx: commands.Context):
         st = self.state(ctx.guild.id)
-        vc: wavelink.Player = ctx.voice_client  # type: ignore
+        vc = self._get_player(ctx)
         st.autoplay = not st.autoplay
         if vc:
             mode = wavelink.AutoPlayMode.enabled if st.autoplay else wavelink.AutoPlayMode.disabled
@@ -315,7 +379,7 @@ class Music(commands.Cog):
     # ── !nowplaying ───────────────────────────────────────────────────────────
     @commands.command(aliases=["np"])
     async def nowplaying(self, ctx: commands.Context):
-        vc: wavelink.Player = ctx.voice_client  # type: ignore
+        vc = self._get_player(ctx)
         st = self.state(ctx.guild.id)
 
         if not vc or not vc.playing or not st.current:
@@ -326,7 +390,12 @@ class Music(commands.Cog):
         pos_ms   = vc.position
         dur_ms   = track.length
         bar      = progress_bar(pos_ms, dur_ms)
-        requester = getattr(track.extras, "requester", "Unknown") if track.extras else "Unknown"
+
+        if track.extras and isinstance(track.extras, dict):
+            requester_id = track.extras.get("requester_id")
+            requester = f"<@{requester_id}>" if requester_id else "Unknown"
+        else:
+            requester = "Unknown"
 
         embed = discord.Embed(
             title="🎵  Now Playing",
@@ -366,12 +435,11 @@ class Music(commands.Cog):
             )
 
         if st.queue:
-            tracks = list(st.queue)
             lines  = []
-            for i, t in enumerate(tracks[:15], 1):
+            for i, t in enumerate(st.queue[:15], 1):
                 lines.append(f"`{i:02}.` **{t.title}** `{fmt_duration(t.length)}`")
-            if len(tracks) > 15:
-                lines.append(f"*... and {len(tracks) - 15} more*")
+            if len(st.queue) > 15:
+                lines.append(f"*... and {len(st.queue) - 15} more*")
             embed.add_field(name="Up Next", value="\n".join(lines), inline=False)
 
         total_ms = sum(t.length for t in st.queue)
@@ -385,10 +453,8 @@ class Music(commands.Cog):
         st = self.state(ctx.guild.id)
         if position < 1 or position > len(st.queue):
             return await ctx.reply(embed=discord.Embed(
-                description=f"❌ Position must be between 1 and {len(st.queue)}.", color=C_ERR))
-        queue_list = list(st.queue)
-        removed    = queue_list.pop(position - 1)
-        st.queue   = deque(queue_list)
+                description=f"❌ Position must be between 1 and {len(st.queue)}. Use `!queue` to see positions.", color=C_ERR))
+        removed = st.queue.pop(position - 1)
         await ctx.reply(embed=discord.Embed(
             description=f"🗑️ Removed **{removed.title}** from queue.", color=C_OK))
 
@@ -397,13 +463,12 @@ class Music(commands.Cog):
     @is_dj()
     async def move(self, ctx: commands.Context, from_pos: int, to_pos: int):
         st = self.state(ctx.guild.id)
-        q  = list(st.queue)
-        if not (1 <= from_pos <= len(q)) or not (1 <= to_pos <= len(q)):
+        size = len(st.queue)
+        if not (1 <= from_pos <= size) or not (1 <= to_pos <= size):
             return await ctx.reply(embed=discord.Embed(
-                description="❌ Invalid positions.", color=C_ERR))
-        track = q.pop(from_pos - 1)
-        q.insert(to_pos - 1, track)
-        st.queue = deque(q)
+                description=f"❌ Invalid positions. Queue has {size} items. Use `!queue` to see positions.", color=C_ERR))
+        track = st.queue.pop(from_pos - 1)
+        st.queue.insert(to_pos - 1, track)
         await ctx.reply(embed=discord.Embed(
             description=f"↕️ Moved **{track.title}** to position **{to_pos}**.", color=C_OK))
 
@@ -415,9 +480,7 @@ class Music(commands.Cog):
         if not st.queue:
             return await ctx.reply(embed=discord.Embed(
                 description="❌ Queue is empty.", color=C_ERR))
-        q = list(st.queue)
-        random.shuffle(q)
-        st.queue = deque(q)
+        random.shuffle(st.queue)
         await ctx.reply(embed=discord.Embed(
             description="🔀 Queue shuffled.", color=C_OK))
 
@@ -453,7 +516,7 @@ class Music(commands.Cog):
         embed = discord.Embed(title="🎵  Music Commands", color=C_MAIN)
         embed.add_field(name="Playback", value=(
             "`!play <query/url>` · `!p`\n"
-            "`!pause` · `!resume` · `!skip`\n"
+            "`!pause` · `!resume` · `!skip` · `!stop`\n"
             "`!seek <1:30>` · `!looptrack` · `!loopqueue`\n"
             "`!autoplay`"
         ), inline=False)
