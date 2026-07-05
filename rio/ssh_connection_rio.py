@@ -30,3 +30,5 @@ class Rio(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Rio(bot))
+
+    #the basics are done, i will complete this function once i switch to arch 
