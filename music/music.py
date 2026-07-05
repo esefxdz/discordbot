@@ -3,6 +3,7 @@ import discord
 import random
 import asyncio
 import logging
+from collections import deque
 from discord.ext import commands
 
 log = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ LOOP_LABEL = {
 # ── per-guild state ──────────────────────────────────────────────────────────
 class GuildState:
     def __init__(self):
-        self.queue:    list               = []
+        self.queue:    deque              = deque()
         self.history:  list               = []   # last 10 tracks
         self.loop:     int                = LOOP_OFF
         self.autoplay: bool               = False
@@ -163,7 +164,7 @@ class Music(commands.Cog):
             st.push_history(st.current)
 
         if st.queue:
-            next_track = st.queue.pop(0)
+            next_track = st.queue.popleft()
             st.current = next_track
             await player.play(next_track)
             await self._set_channel_status(player, next_track)
@@ -218,7 +219,7 @@ class Music(commands.Cog):
 
             # Start the first track if nothing is playing
             if not vc.playing and not vc.paused and st.queue:
-                st.current = st.queue.pop(0)
+                st.current = st.queue.popleft()
                 await vc.play(st.current)
                 await self._set_channel_status(vc, st.current)
 
@@ -436,7 +437,7 @@ class Music(commands.Cog):
 
         if st.queue:
             lines  = []
-            for i, t in enumerate(st.queue[:15], 1):
+            for i, t in enumerate(list(st.queue)[:15], 1):
                 lines.append(f"`{i:02}.` **{t.title}** `{fmt_duration(t.length)}`")
             if len(st.queue) > 15:
                 lines.append(f"*... and {len(st.queue) - 15} more*")
@@ -454,7 +455,9 @@ class Music(commands.Cog):
         if position < 1 or position > len(st.queue):
             return await ctx.reply(embed=discord.Embed(
                 description=f"❌ Position must be between 1 and {len(st.queue)}. Use `!queue` to see positions.", color=C_ERR))
-        removed = st.queue.pop(position - 1)
+        q = list(st.queue)
+        removed = q.pop(position - 1)
+        st.queue = deque(q)
         await ctx.reply(embed=discord.Embed(
             description=f"🗑️ Removed **{removed.title}** from queue.", color=C_OK))
 
@@ -467,8 +470,10 @@ class Music(commands.Cog):
         if not (1 <= from_pos <= size) or not (1 <= to_pos <= size):
             return await ctx.reply(embed=discord.Embed(
                 description=f"❌ Invalid positions. Queue has {size} items. Use `!queue` to see positions.", color=C_ERR))
-        track = st.queue.pop(from_pos - 1)
-        st.queue.insert(to_pos - 1, track)
+        q = list(st.queue)
+        track = q.pop(from_pos - 1)
+        q.insert(to_pos - 1, track)
+        st.queue = deque(q)
         await ctx.reply(embed=discord.Embed(
             description=f"↕️ Moved **{track.title}** to position **{to_pos}**.", color=C_OK))
 
@@ -480,7 +485,9 @@ class Music(commands.Cog):
         if not st.queue:
             return await ctx.reply(embed=discord.Embed(
                 description="❌ Queue is empty.", color=C_ERR))
-        random.shuffle(st.queue)
+        q = list(st.queue)
+        random.shuffle(q)
+        st.queue = deque(q)
         await ctx.reply(embed=discord.Embed(
             description="🔀 Queue shuffled.", color=C_OK))
 
