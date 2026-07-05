@@ -96,7 +96,7 @@ class Music(commands.Cog):
     async def on_ready(self):
         node = wavelink.Node(uri="http://127.0.0.1:2333", password="yuukabot")
         await wavelink.Pool.connect(nodes=[node], client=self.bot)
-        print("✅ Wavelink connected to Lavalink")
+        print("Wavelink connected to Lavalink")
 
     # ── track end → advance queue ─────────────────────────────────────────────
     @commands.Cog.listener()

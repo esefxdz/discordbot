@@ -24,7 +24,7 @@ class TelegramForwarder:
         await self._app.initialize()
         await self._app.start()
         await self._app.updater.start_polling(drop_pending_updates=True)
-        print(f'✅ telegram forwarder started — watching {len(self.routes)} groups')
+        print(f'telegram forwarder started — watching {len(self.routes)} groups')
 
     async def stop(self):
         if self._app:
