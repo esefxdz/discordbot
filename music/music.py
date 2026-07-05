@@ -2,6 +2,9 @@ import wavelink
 import discord
 import random
 import asyncio
+import logging
+
+log = logging.getLogger(__name__)
 from discord.ext import commands
 from collections import deque
 
@@ -84,12 +87,17 @@ class Music(commands.Cog):
             return
         try:
             if track:
-                status = f"🎵 {track.title}"
+                status = f"🎵 {track.title}"[:500]
             else:
-                status = ""
-            await channel.set_status(status)
+                status = None
+            route = discord.http.Route(
+                'PUT',
+                '/channels/{channel_id}/voice-status',
+                channel_id=channel.id,
+            )
+            await self.bot.http.request(route, json={'status': status})
         except Exception:
-            pass  # silently ignore missing permissions or unsupported guild
+            log.warning(f"Failed to set voice channel status in {player.guild.id}", exc_info=True)
 
     # ── connect lavalink ─────────────────────────────────────────────────────
     @commands.Cog.listener()
@@ -130,6 +138,15 @@ class Music(commands.Cog):
             st.current = None
             await self._set_channel_status(player, None)
 
+    # ── track start → update status ───────────────────────────────────────────
+    @commands.Cog.listener()
+    async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload):
+        player: wavelink.Player = payload.player
+        if player is None:
+            return
+        st = self.state(player.guild.id)
+        await self._set_channel_status(player, st.current)
+
     # ── !play ─────────────────────────────────────────────────────────────────
     @commands.command(aliases=["p"])
     async def play(self, ctx: commands.Context, *, query: str):
@@ -142,7 +159,6 @@ class Music(commands.Cog):
         if not vc:
             vc = await ctx.author.voice.channel.connect(cls=wavelink.Player)
             vc.autoplay = wavelink.AutoPlayMode.disabled
-            vc.inactive_timeout = None
             vc.inactive_timeout = None
 
         st = self.state(ctx.guild.id)
@@ -163,6 +179,7 @@ class Music(commands.Cog):
                 if not vc.playing and not vc.paused and st.queue:
                     st.current = st.queue.popleft()
                     await vc.play(st.current)
+                    await self._set_channel_status(vc, st.current)
 
             embed = discord.Embed(
                 title="📋  Playlist Queued",
