@@ -29,7 +29,7 @@ from discord.ext import commands
 
 # ── constants ────────────────────────────────────────────────────────────────
 
-ROLE_TAG = "[custom]"
+ROLE_TAG = ""
 TIMEOUT  = 120  # seconds per DM question
 
 COLOR_PRESETS: dict[str, int] = {
