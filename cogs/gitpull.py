@@ -104,10 +104,20 @@ class GitPull(commands.Cog):
             f"Restarting `{SERVICE_NAME}` — see you on the other side.",
             C_WARN,
         ))
-        try:
-            await run_sudo_systemctl("restart")
-        except Exception:
-            pass  # process dies mid-call, that's expected
+        await asyncio.sleep(0.5)
+        proc = await asyncio.create_subprocess_exec(
+            "sudo", "-S", "systemctl", "restart", SERVICE_NAME,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        if SUDO_PASSWORD:
+            try:
+                proc.stdin.write(f"{SUDO_PASSWORD}\n".encode())
+                await proc.stdin.drain()
+                proc.stdin.close()
+            except Exception:
+                pass
 
     # ── !gitpull ──────────────────────────────────────────────────────────────
 
