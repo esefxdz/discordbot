@@ -160,22 +160,25 @@ class Fun(commands.Cog):
         percentage = random.randint(0, 100)
         await ctx.reply(f"🛳️ **Ship:** {user1} x {user2}\n**Compatibility:** {percentage}%")
 
-    # 10 Pull Gacha (5% Purple, 19% Yellow, 76% Blue)
+    # 10 Pull Gacha (5% Purple, 19% Yellow, 76% Blue. 10th is guaranteed 97% Y / 3% P)
     @commands.command()
     async def pull(self, ctx):
         results = []
-        for _ in range(10):
+        for i in range(10):
             roll = random.randint(1, 100)
-            if roll <= 5:
-                results.append('🟪')
-            elif roll <= 24:
-                results.append('🟨')
+            # The 10th pull (index 9) uses different odds
+            if i == 9:
+                if roll <= 3:
+                    results.append('🟪')
+                else:
+                    results.append('🟨')
             else:
-                results.append('🟦')
-                
-        if '🟨' not in results and '🟪' not in results:
-            if '🟦' in results:
-                results[results.index('🟦')] = '🟨'
+                if roll <= 5:
+                    results.append('🟪')
+                elif roll <= 24:
+                    results.append('🟨')
+                else:
+                    results.append('🟦')
                 
         # Using En-Space (\u2002) so Discord doesn't collapse it
         row1 = "\u2002".join(results[0:5])
