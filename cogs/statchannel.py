@@ -5,10 +5,17 @@ import os
 class StatChannel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.channel_id = int(os.getenv('STRINOVA_STAT_CHANNEL_ID'))
-        self.channel_id_mao = int(os.getenv('STRINOVA_STAT_CHANNEL_ID_MAO'))
+
+        def _parse_id(key: str) -> int | None:
+            val = os.getenv(key, "")
+            return int(val) if val.isdigit() else None
+
+        self.channel_id     = _parse_id('STRINOVA_STAT_CHANNEL_ID')
+        self.channel_id_mao = _parse_id('STRINOVA_STAT_CHANNEL_ID_MAO')
+
         self.update_stat.start()
-        self.update_stat_mao.start()
+        if self.channel_id_mao is not None:
+            self.update_stat_mao.start()
 
     def cog_unload(self):
         self.update_stat.cancel()

@@ -48,7 +48,6 @@ COLOR_PRESETS: dict[str, int] = {
 PANEL_TEXT = (
     "**custom roles**\n\n"
     "you can give yourself a role with your own name and color. "
-    "it's purely decorative — no permissions, just looks.\n\n"
     "click the button below and the bot will message you to set it up."
 )
 
