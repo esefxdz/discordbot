@@ -12,7 +12,7 @@ from collections import defaultdict, deque
 # pyrefly: ignore [missing-import]
 from openai import AsyncOpenAI
 
-#only last 12 messages on discord will be fed into the ai's memory
+#only last 15 messages on discord will be fed into the ai's memory
 MEMORY_SIZE = 15
 
 # These are the ONLY two valid DeepSeek V4 model IDs. deepseek-chat and
@@ -38,6 +38,7 @@ MAX_TOKENS_THINKING = 4096
 # Per-1M-token pricing (USD), per DeepSeek's official pricing page.
 # Pro costs roughly 3x flash on input and output — tracked separately so
 # !aicost is accurate when you've been toggling !turbo.
+#i could not find a way to implement dynamic pricing, this is just basic maths based on their pricing
 PRICING = {
     MODEL_FLASH: {'cache_hit': 0.0028, 'cache_miss': 0.14, 'output': 0.28},
     MODEL_PRO:   {'cache_hit': 0.003625, 'cache_miss': 0.435, 'output': 0.87},
@@ -72,7 +73,7 @@ def list_personas():
                 names.append(fname.replace('_prompt.txt', ''))
     return sorted(names)
 
-#this splits messages into chunks if they are too long (optimization)
+#this splits messages (sent by bot) into chunks if they are too long (optimization)
 def split_msg(text, limit=2000):
     chunks = []
     while len(text) > limit:
@@ -81,6 +82,7 @@ def split_msg(text, limit=2000):
             split_at = limit
         chunks.append(text[:split_at])
         text = text[split_at:].lstrip('\n')
+    #must be put outside the loop (dont try putting inside :sob:)
     if text:
         chunks.append(text)
     return chunks
@@ -92,6 +94,7 @@ def split_msg(text, limit=2000):
 #dropdown for thinking mode — scoped to one channel, not global
 class ThinkingSelect(discord.ui.Select):
     def __init__(self, cog, channel_id):
+        
         self.cog = cog
         self.channel_id = channel_id
         current = cog.thinking_effort.get(channel_id, 'off') if channel_id in cog.thinking_channels else 'off'

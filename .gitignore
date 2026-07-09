@@ -9,3 +9,6 @@ cogs/archived/
 .vscode
 music/__pycache__/music.cpython-312.pyc
 yuuka-radio-streams.md
+esef_learns.md
+icy_supported.json
+icy_metadata_radios.md

@@ -45,7 +45,7 @@ twitter_mao = TwitterRSSForwarder(
 
 @bot.event
 async def on_ready():
-    print(f'✅ {bot.user} is online!')
+    print(f'[+] {bot.user} is online!')
     asyncio.create_task(forwarder.start())
     asyncio.create_task(twitter.start())
     asyncio.create_task(twitter_mao.start())
@@ -58,7 +58,7 @@ async def main():
         await bot.load_extension('cogs.gifs')
         await bot.load_extension('cogs.copypasta')
         await bot.load_extension('cogs.sysinfo')
-        await bot.load_extension('music.music')
+        await bot.load_extension('music.music_wrapper')
         await bot.load_extension('cogs.statchannel')
         await bot.load_extension('cogs.ffmpeg_things')
         await bot.load_extension('cogs.archive')
