@@ -18,7 +18,7 @@ class Fun(commands.Cog):
             "!coin - flips a coin\n"
             "!rps <choice> - rock paper scissors\n"
             "!roulette - russian roulette\n"
-            "!pull - 10 pull gacha\n"
+            "!gacha - blue archive recruitment simulator\n"
             "!slots - slot machine\n"
             "!ship @user - love meter\n"
             "!pp - measures pp size\n"
@@ -174,33 +174,6 @@ class Fun(commands.Cog):
             
         percentage = random.randint(0, 100)
         await ctx.reply(f"🛳️ **Ship:** {user1} x {user2}\n**Compatibility:** {percentage}%")
-
-    # 10 Pull Gacha (5% Purple, 19% Yellow, 76% Blue. 10th is guaranteed 97% Y / 3% P)
-    @commands.command()
-    async def pull(self, ctx):
-        results = []
-        for i in range(10):
-            roll = random.randint(1, 100)
-            # The 10th pull (index 9) uses different odds
-            if i == 9:
-                if roll <= 3:
-                    results.append('🟪')
-                else:
-                    results.append('🟨')
-            else:
-                if roll <= 5:
-                    results.append('🟪')
-                elif roll <= 24:
-                    results.append('🟨')
-                else:
-                    results.append('🟦')
-                
-        # Using En-Space (\u2002) so Discord doesn't collapse it
-        row1 = "\u2002".join(results[0:5])
-        row2 = "\u2002".join(results[5:10])
-        
-        await ctx.reply(f"{row1}\n\n{row2}")
-
 
 async def setup(bot):
     await bot.add_cog(Fun(bot))

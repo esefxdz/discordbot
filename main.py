@@ -68,6 +68,7 @@ async def main():
         await bot.load_extension('ai.ai_roleplay')
         await bot.load_extension('twitterbridge.leaks_cmd')
         await bot.load_extension("rio.ssh_connection_rio")
+        await bot.load_extension('blue_archive.gacha')
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))

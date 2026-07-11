@@ -29,3 +29,4 @@ run these to see the sub-commands:
 - `!sysinfo` — hardware monitoring
 - `!gifs` — the gif list 
 - `!fun` — the junk commands
+- `!gacha` — blue archive recruitment simulator (pick banners, pull with live rates)
