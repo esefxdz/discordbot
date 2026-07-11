@@ -128,13 +128,16 @@ class StudentDB:
         return self.by_name.get(name.lower())
 
     def build_pool(self, banner: Optional[dict]) -> dict[int, list[dict]]:
-        """Build the effective character pool for a banner.
+        """Build the pullable character pool for a specific banner.
 
-        Returns {1: [...], 2: [...], 3: [...]} with characters pullable on this banner.
+        Pool rules match the real game:
+        - Regular:     standard characters only (IsLimited == 0)
+        - Pickup:      standard pool + rate-up students
+        - Limited:     standard pool + limited rate-up (only that banner)
+        - Fes:         standard pool + ALL limiteds (IsLimited == 1) + rate-ups
 
-        - Regular Recruitment (banner=None): standard pool only
-        - PickupGacha / LimitedGacha: standard pool + rate-up students
-        - FesGacha: standard pool + all limiteds + rate-ups
+        Returns {1: [...], 2: [...], 3: [...]}.
+        Pass banner=None for regular recruitment.
         """
         pool: dict[int, list[dict]] = {
             r: list(self._std_pool[r]) for r in (1, 2, 3)
@@ -165,10 +168,12 @@ class StudentDB:
         return pool
 
     def weighted_pick(self, pool: list[dict], rateup_names: list[str], rarity: int) -> dict:
-        """Pick a student from a pool with rate-up weighting.
+        """Pick a random student from a rarity pool with rate-up weighting.
 
-        For 3★ rarity, rate-up students each get ~23% weight (matching the
-        real game's 0.7% per rate-up out of 3% total). For 1-2★, uniform.
+        For 3★: rate-up characters get 3x higher weight than standard ones,
+        producing roughly the same rate-up frequency as the real game's 0.7%
+        per rate-up out of the 3% total.
+        For 1-2★: uniform random (rate-ups don't affect lower rarities).
         """
         if not pool:
             return random.choice(self.students)
@@ -205,16 +210,17 @@ db = StudentDB()
 
 # --- Banner types & rates ---------------------------------------------------
 
-# In-game rates per banner type
-# Format: { gachaType: (rate_3star, rate_2star, rate_1star) }
-# Fes banners double the 3-star rate to 6%
+# Rate tables matching real Blue Archive gacha:
+#   Regular:  3★ = 3.0%,  2★ = 18.5%,  1★ = 78.5%
+#   Fes:      3★ = 6.0%,  2★ = 18.5%,  1★ = 75.5%
+#   10th pull: 3★ = 3.0%,  2★ = 97.0%,  1★ = 0%  (2★+ guarantee)
 BANNER_RATES: dict[str, tuple[float, float, float]] = {
     "FesGacha": (0.06, 0.185, 0.755),
 }
 DEFAULT_RATES = (0.03, 0.185, 0.785)
 
-# The 10th pull on a 10-pull: guarantee at least 2-star
-# (97% 2-star, 3% 3-star — the 1-star rate is redirected into 2-star)
+# 10th pull on a 10-pull guarantees 2★ minimum:
+# 3★ = 3.0%, 2★ = 97.0%, 1★ = 0%
 PULL10_RATES = (0.03, 0.97, 0.0)
 
 
@@ -239,7 +245,8 @@ def get_rates_for_banner(banner: dict) -> tuple[float, float, float]:
 async def fetch_banners(session: Optional[aiohttp.ClientSession] = None) -> dict:
     """Fetch live banner data from the BlueArchiveAPI.
 
-    Returns the parsed JSON: {"current": [...], "upcoming": [...], "ended": [...]}
+    Returns {"current": [...], "upcoming": [...], "ended": [...]}.
+    Each banner has: id, gachaType, rateups (list of names), startedAt, endedAt.
     """
     close_session = session is None
     if close_session:

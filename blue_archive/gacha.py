@@ -101,7 +101,7 @@ class BlueArchiveGacha(commands.Cog):
 
     @commands.group(name="gacha", aliases=["banners", "g"], invoke_without_command=True)
     async def gacha(self, ctx: commands.Context) -> None:
-        """Show live recruitment banners. Use subcommands: pick, info."""
+        """Show currently active recruitment banners from the live API."""
         try:
             await asyncio.wait_for(self._cache_ready.wait(), timeout=15.0)
         except asyncio.TimeoutError:
@@ -193,10 +193,10 @@ class BlueArchiveGacha(commands.Cog):
 
     @commands.command(name="pull")
     async def pull_gacha(self, ctx: commands.Context, *, mode: str = "10") -> None:
-        """Perform a gacha pull. Default is 10-pull.
+        """Pull on your active recruitment banner.
 
-        Usage: !pull        (10-pull)
-               !pull single (1-pull)
+        Usage: !pull         (10-pull with guaranteed 2★+ on 10th)
+               !pull single  (1-pull)
         """
         mode = mode.strip().lower()
         if mode in ("single", "1", "one"):

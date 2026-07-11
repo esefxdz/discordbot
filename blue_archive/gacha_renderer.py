@@ -14,7 +14,8 @@ from .data import db
 
 log = logging.getLogger(__name__)
 
-# ── Layout constants (1920×1080 canvas) ────────────────────────────────────
+# Layout: 1920x1080 canvas, 5x2 card grid, 10px rounded corners
+# Each card: star banner → portrait → name strip
 CANVAS_W, CANVAS_H = 1920, 1080
 CARD_W, CARD_H = 280, 390
 CARD_RADIUS = 10                             # corner radius
@@ -32,16 +33,16 @@ NAME_STRIP_H = 42                             # name/school strip at bottom
 PORTRAIT_TOP = STAR_BANNER_H + 4              # portrait starts below star banner
 PORTRAIT_H = CARD_H - PORTRAIT_TOP - NAME_STRIP_H - 4
 
-# Rarity colours
+# Rarity frame and star colours
 RARITY_COLORS = {
-    3: (210, 150, 250),  # purple (bright)
-    2: (255, 225, 80),   # gold (bright)
-    1: (130, 200, 255),  # blue (bright)
+    3: (240, 190, 255),  # bright purple
+    2: (255, 250, 140),  # bright gold
+    1: (170, 225, 255),  # bright sky blue
 }
 RARITY_BG = {
-    3: (30, 18, 42),
-    2: (42, 34, 18),
-    1: (18, 26, 42),
+    3: (38, 22, 50),
+    2: (50, 42, 22),
+    1: (22, 30, 50),
 }
 
 ASSETS_DIR = Path(__file__).parent / "assets"
@@ -126,7 +127,10 @@ def _rounded_rect(
 
 
 def _star_polygon(cx: int, cy: int, outer_r: int, inner_r: int) -> list[tuple[int, int]]:
-    """Return vertices for a 5-pointed star centered at (cx, cy)."""
+    """Generate vertex list for a 5-pointed star centered at (cx, cy).
+    
+    Uses 10 alternating outer/inner radius points, rotated by pi/5 each step.
+    """
     import math
     points = []
     for i in range(10):
