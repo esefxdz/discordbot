@@ -34,14 +34,14 @@ PORTRAIT_H = CARD_H - PORTRAIT_TOP - NAME_STRIP_H - 4
 
 # Rarity colours
 RARITY_COLORS = {
-    3: (255, 200, 60),   # gold
-    2: (190, 130, 230),  # purple
-    1: (110, 170, 230),  # blue
+    3: (210, 150, 250),  # purple (bright)
+    2: (255, 225, 80),   # gold (bright)
+    1: (130, 200, 255),  # blue (bright)
 }
 RARITY_BG = {
-    3: (35, 28, 18),
-    2: (28, 18, 38),
-    1: (18, 22, 38),
+    3: (30, 18, 42),
+    2: (42, 34, 18),
+    1: (18, 26, 42),
 }
 
 ASSETS_DIR = Path(__file__).parent / "assets"
