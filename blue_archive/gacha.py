@@ -25,16 +25,14 @@ log = logging.getLogger(__name__)
 
 
 def _load_banner_state() -> dict:
-    """Which banner each user has picked. Lightweight JSON, separate from SQLite."""
+    """Which banner each user has picked."""
     if BANNER_FILE.exists():
-        import json
         with open(BANNER_FILE, "r") as f:
             return json.load(f)
     return {}
 
 
 def _save_banner_state(state: dict) -> None:
-    import json
     BANNER_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(BANNER_FILE, "w") as f:
         json.dump(state, f, indent=2)
@@ -207,7 +205,7 @@ class BlueArchiveGacha(commands.Cog):
 
         if banner_id and banner_id != "regular":
             for b in self._all_banners():
-                if b["id"] == banner_id:
+                if str(b.get("id")) == banner_id:
                     banner = b
                     break
             if banner:
@@ -335,17 +333,10 @@ class BlueArchiveGacha(commands.Cog):
         banner_name = "Regular Recruitment"
         if banner_id and banner_id != "regular":
             for b in self._all_banners():
-                if b["id"] == banner_id:
+                if str(b.get("id")) == banner_id:
                     rateups = ", ".join(b.get("rateups", [])) or "Standard Pool"
                     banner_name = f"{b.get('gachaType', 'PickupGacha')} — {rateups}"
                     break
-
-        # Recent pulls
-        recent = []
-        for sid in reversed(history[-5:]):
-            s = db.get(sid)
-            if s:
-                recent.append(f"{'*' * s['StarGrade']} {s['Name']}")
 
         embed = discord.Embed(
             title="Your Gacha Status",
