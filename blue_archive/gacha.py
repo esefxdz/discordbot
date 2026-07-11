@@ -230,8 +230,13 @@ class BlueArchiveGacha(commands.Cog):
         # "Opening envelope" teaser
         teaser = await ctx.reply("Opening recruitment envelope" + ("s..." if count > 1 else "..."))
 
-        # Determine pool scope: regular banner excludes limiteds
-        is_regular = (banner_id is None or banner_id == "regular")
+        # Build the banner-specific character pool
+        if banner_id and banner_id != "regular" and banner:
+            pool = db.build_pool(banner)
+            rateup_names = [n.lower() for n in banner.get("rateups", [])]
+        else:
+            pool = db.build_pool(None)  # regular recruitment
+            rateup_names = []
 
         # Perform pulls
         pulls = []
@@ -242,18 +247,11 @@ class BlueArchiveGacha(commands.Cog):
                 r = PULL10_RATES
 
             rarity = roll_rarity(r)
-            student = db.random_by_rarity(rarity, exclude_limited=is_regular)
-
-            # Check for rate-up weighting (simplified: 30% chance to hit rate-up if 3★)
-            if banner and rarity == 3 and banner.get("rateups"):
-                rateup_names = [n.lower() for n in banner["rateups"]]
-                if random.random() < 0.30:
-                    # Try to find the rate-up student in our DB
-                    for rn in rateup_names:
-                        s = db.get_by_name(rn)
-                        if s and s["StarGrade"] == 3:
-                            student = s
-                            break
+            rarity_pool = pool.get(rarity, [])
+            if rarity_pool:
+                student = db.weighted_pick(rarity_pool, rateup_names, rarity)
+            else:
+                student = db.random_by_rarity(rarity)  # fallback
 
             pulls.append(student)
 

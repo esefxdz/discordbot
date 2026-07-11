@@ -99,28 +99,96 @@ class StudentDB:
             if rarity in self.by_rarity:
                 self.by_rarity[rarity].append(s)
 
+        # Pre-build standard pool (IsLimited == 0 only) and full pool
+        self._std_pool: dict[int, list[dict]] = {1: [], 2: [], 3: []}
+        self._limited_pool: list[dict] = []  # all IsLimited == 1 chars
+        for s in self.students:
+            limit = s.get("IsLimited") or 0
+            if limit >= 2:
+                continue
+            r = s["StarGrade"]
+            if limit == 0 and r in self._std_pool:
+                self._std_pool[r].append(s)
+            elif limit == 1:
+                self._limited_pool.append(s)
+
         self._loaded = True
         log.info(
-            "Loaded %d students (1*: %d, 2*: %d, 3*: %d) — %d welfare excluded",
+            "Loaded %d students (std: %d, limited: %d, welfare: %d)",
             len(self.students),
-            len(self.by_rarity[1]),
-            len(self.by_rarity[2]),
-            len(self.by_rarity[3]),
+            sum(len(v) for v in self._std_pool.values()),
+            len(self._limited_pool),
             excluded,
         )
 
-    def random_by_rarity(self, rarity: int, exclude_limited: bool = False) -> dict:
-        """Pick a random student of the given base rarity.
+    def get(self, student_id: int) -> Optional[dict]:
+        return self.by_id.get(student_id)
 
-        If exclude_limited is True, only returns standard-pool characters
-        (IsLimited == 0). Used by Regular Recruitment to exclude banner-only units.
+    def get_by_name(self, name: str) -> Optional[dict]:
+        return self.by_name.get(name.lower())
+
+    def build_pool(self, banner: Optional[dict]) -> dict[int, list[dict]]:
+        """Build the effective character pool for a banner.
+
+        Returns {1: [...], 2: [...], 3: [...]} with characters pullable on this banner.
+
+        - Regular Recruitment (banner=None): standard pool only
+        - PickupGacha / LimitedGacha: standard pool + rate-up students
+        - FesGacha: standard pool + all limiteds + rate-ups
         """
-        pool = self.by_rarity.get(rarity, [])
-        if exclude_limited:
-            pool = [s for s in pool if (s.get("IsLimited") or 0) == 0]
+        pool: dict[int, list[dict]] = {
+            r: list(self._std_pool[r]) for r in (1, 2, 3)
+        }
+
+        if banner is None:
+            return pool
+
+        gtype = banner.get("gachaType", "")
+        rateup_names = [n.lower() for n in banner.get("rateups", [])]
+
+        # For Fes banners, add ALL past limited characters to the pool
+        if gtype == "FesGacha":
+            for s in self._limited_pool:
+                r = s["StarGrade"]
+                if r in pool:
+                    pool[r].append(s)
+
+        # Add rate-up students (they might already be in the pool, but we need
+        # to identify them for weighted selection later)
+        for name in rateup_names:
+            s = self.get_by_name(name)
+            if s and (s.get("IsLimited") or 0) < 2:
+                r = s["StarGrade"]
+                if r in pool and s not in pool[r]:
+                    pool[r].append(s)
+
+        return pool
+
+    def weighted_pick(self, pool: list[dict], rateup_names: list[str], rarity: int) -> dict:
+        """Pick a student from a pool with rate-up weighting.
+
+        For 3★ rarity, rate-up students each get ~23% weight (matching the
+        real game's 0.7% per rate-up out of 3% total). For 1-2★, uniform.
+        """
         if not pool:
-            pool = self.students
+            return random.choice(self.students)
+
+        if rarity == 3 and rateup_names:
+            # Weighted: rate-up chars get 3x weight each vs normal chars
+            weights = []
+            for s in pool:
+                if s["Name"].lower() in rateup_names:
+                    weights.append(3.0)
+                else:
+                    weights.append(1.0)
+            return random.choices(pool, weights=weights, k=1)[0]
+
         return random.choice(pool)
+
+    def random_by_rarity(self, rarity: int) -> dict:
+        """Pick any student of given rarity from the full pullable pool (fallback)."""
+        pool = self.by_rarity.get(rarity, [])
+        return random.choice(pool) if pool else random.choice(self.students)
 
     def wiki_portrait(self, student: dict) -> str:
         """Wiki face-portrait CDN URL for a student dict (252x204)."""
