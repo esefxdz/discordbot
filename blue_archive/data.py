@@ -63,8 +63,6 @@ def wiki_portrait_url(student: dict) -> str:
 def schale_portrait_url(student_id: int) -> str:
     """Full-body sprite URL (fallback if wiki portrait is unavailable)."""
     return f"{SCHALE_PORTRAIT}/{student_id}.webp"
-PORTRAIT_BASE = "https://raw.githubusercontent.com/SchaleDB/SchaleDB/main/images/student/portrait"
-ICON_BASE = "https://raw.githubusercontent.com/SchaleDB/SchaleDB/main/images/student/icon"
 
 
 class StudentDB:
@@ -83,36 +81,44 @@ class StudentDB:
         with open(BUNDLED_DB, "r", encoding="utf-8") as f:
             self.students = json.load(f)
 
+        excluded = 0
         for s in self.students:
             sid = s["Id"]
             name = s["Name"].lower()
             rarity = s["StarGrade"]
+            limit = s.get("IsLimited") or 0
 
             self.by_id[sid] = s
             self.by_name[name] = s
+
+            # Exclude welfare/event characters (IsLimited >= 2) from pullable pool
+            if limit >= 2:
+                excluded += 1
+                continue
+
             if rarity in self.by_rarity:
                 self.by_rarity[rarity].append(s)
 
         self._loaded = True
         log.info(
-            "Loaded %d students (1*: %d, 2*: %d, 3*: %d)",
+            "Loaded %d students (1*: %d, 2*: %d, 3*: %d) — %d welfare excluded",
             len(self.students),
             len(self.by_rarity[1]),
             len(self.by_rarity[2]),
             len(self.by_rarity[3]),
+            excluded,
         )
 
-    def get(self, student_id: int) -> Optional[dict]:
-        return self.by_id.get(student_id)
+    def random_by_rarity(self, rarity: int, exclude_limited: bool = False) -> dict:
+        """Pick a random student of the given base rarity.
 
-    def get_by_name(self, name: str) -> Optional[dict]:
-        return self.by_name.get(name.lower())
-
-    def random_by_rarity(self, rarity: int) -> dict:
-        """Pick a random student of the given base rarity (1, 2, or 3)."""
+        If exclude_limited is True, only returns standard-pool characters
+        (IsLimited == 0). Used by Regular Recruitment to exclude banner-only units.
+        """
         pool = self.by_rarity.get(rarity, [])
+        if exclude_limited:
+            pool = [s for s in pool if (s.get("IsLimited") or 0) == 0]
         if not pool:
-            # Fallback: any student
             pool = self.students
         return random.choice(pool)
 

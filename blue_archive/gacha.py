@@ -230,6 +230,9 @@ class BlueArchiveGacha(commands.Cog):
         # "Opening envelope" teaser
         teaser = await ctx.reply("Opening recruitment envelope" + ("s..." if count > 1 else "..."))
 
+        # Determine pool scope: regular banner excludes limiteds
+        is_regular = (banner_id is None or banner_id == "regular")
+
         # Perform pulls
         pulls = []
         for i in range(count):
@@ -239,7 +242,7 @@ class BlueArchiveGacha(commands.Cog):
                 r = PULL10_RATES
 
             rarity = roll_rarity(r)
-            student = db.random_by_rarity(rarity)
+            student = db.random_by_rarity(rarity, exclude_limited=is_regular)
 
             # Check for rate-up weighting (simplified: 30% chance to hit rate-up if 3★)
             if banner and rarity == 3 and banner.get("rateups"):
@@ -267,43 +270,13 @@ class BlueArchiveGacha(commands.Cog):
         async with ctx.typing():
             img_bytes = await render_pull(pulls, banner_name, spark)
 
-        # Build summary embed
-        rarity_counts = {3: 0, 2: 0, 1: 0}
-        for p in pulls:
-            rarity_counts[p["StarGrade"]] += 1
-
-        summary_lines = [f"{p['StarGrade']}★ {p['Name']}" for p in pulls]
-        summary_text = "\n".join(summary_lines)
-
-        best = max(pulls, key=lambda p: p["StarGrade"])
-        embed = discord.Embed(
-            title=f"{count}x Recruitment Result",
-            description=summary_text,
-            color={
-                3: 0xF0C040,
-                2: 0xB478DC,
-                1: 0x64A0DC,
-            }.get(best["StarGrade"], 0x5BA0D0),
-        )
-        embed.add_field(
-            name="Summary",
-            value=f"3★: {rarity_counts[3]}  |  2★: {rarity_counts[2]}  |  1★: {rarity_counts[1]}",
-        )
-        embed.add_field(name="Banner", value=banner_name, inline=False)
-        embed.add_field(
-            name="Recruitment Points",
-            value=f"{spark}/{SPARK_TARGET} {'-- Spark Ready!' if spark >= SPARK_TARGET else ''}",
-        )
-        embed.set_footer(text=f"Top pull: {best['StarGrade']}★ {best['Name']} ({best.get('School', '')})")
-
-        # Send image and embed
+        # Send image only — the picture says it all
         file = discord.File(img_bytes, filename="gacha_result.png")
-        embed.set_image(url="attachment://gacha_result.png")
         try:
             await teaser.delete()
         except (discord.NotFound, discord.Forbidden):
             pass
-        await ctx.reply(file=file, embed=embed)
+        await ctx.reply(file=file)
 
     @commands.command(name="spark")
     async def spark(self, ctx: commands.Context, *, character_name: str = "") -> None:
