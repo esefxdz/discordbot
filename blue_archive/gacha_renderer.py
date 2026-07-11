@@ -11,56 +11,25 @@ import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 
 from .data import db
+from .constants import (
+    CANVAS_W, CANVAS_H,
+    CARD_W, CARD_H, CARD_RADIUS,
+    GAP_X, GAP_Y, COLS, ROWS,
+    GRID_W, GRID_H, GRID_X, GRID_Y,
+    HEADER_Y, FOOTER_Y,
+    STAR_BANNER_H, NAME_STRIP_H, PORTRAIT_TOP, PORTRAIT_H,
+    RARITY_COLOR, RARITY_BG,
+    BG_PATH,
+    FONT_PATHS,
+)
 
 log = logging.getLogger(__name__)
-
-# Layout: 1920x1080 canvas, 5x2 card grid, 10px rounded corners
-# Each card: star banner → portrait → name strip
-CANVAS_W, CANVAS_H = 1920, 1080
-CARD_W, CARD_H = 280, 390
-CARD_RADIUS = 10                             # corner radius
-GAP_X, GAP_Y = 25, 20
-COLS, ROWS = 5, 2
-GRID_W = COLS * CARD_W + (COLS - 1) * GAP_X  # 1500
-GRID_H = ROWS * CARD_H + (ROWS - 1) * GAP_Y  # 800
-GRID_X = (CANVAS_W - GRID_W) // 2            # 210
-GRID_Y = 260                                 # below the header
-HEADER_Y = 120
-FOOTER_Y = GRID_Y + GRID_H + 50
-
-STAR_BANNER_H = 36                            # star rating strip at top of card
-NAME_STRIP_H = 42                             # name/school strip at bottom
-PORTRAIT_TOP = STAR_BANNER_H + 4              # portrait starts below star banner
-PORTRAIT_H = CARD_H - PORTRAIT_TOP - NAME_STRIP_H - 4
-
-# Rarity frame and star colours
-RARITY_COLORS = {
-    3: (240, 190, 255),  # bright purple
-    2: (255, 250, 140),  # bright gold
-    1: (170, 225, 255),  # bright sky blue
-}
-RARITY_BG = {
-    3: (38, 22, 50),
-    2: (50, 42, 22),
-    1: (22, 30, 50),
-}
-
-ASSETS_DIR = Path(__file__).parent / "assets"
-BG_PATH = ASSETS_DIR / "gacha_bg.png"
 
 # ── Font helpers ───────────────────────────────────────────────────────────
 
 def _get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     """Try to load a nice font; fall back to default."""
-    font_paths = [
-        "C:/Windows/Fonts/segoeui.ttf",
-        "C:/Windows/Fonts/segoeuib.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-        "C:/Windows/Fonts/arialbd.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-    ]
-    for fp in font_paths:
+    for fp in FONT_PATHS:
         if Path(fp).exists():
             try:
                 return ImageFont.truetype(fp, size)
@@ -284,7 +253,7 @@ def _draw_card(
 ) -> None:
     """Draw a single recruitment result card at (x, y)."""
     rarity = student["StarGrade"]
-    color = RARITY_COLORS.get(rarity, (150, 150, 150))
+    color = RARITY_COLOR.get(rarity, (150, 150, 150))
     bg = RARITY_BG.get(rarity, (20, 20, 20))
 
     # Card background with rounded corners

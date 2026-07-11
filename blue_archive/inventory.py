@@ -8,23 +8,18 @@ from discord.ext import commands
 
 from . import db as gacha_db
 from .data import db
+from .constants import (
+    PAGE_SIZE, POOL_TOTALS, FILTER_LABELS,
+    RARITY_SYMBOL, RARITY_LABEL, RARITY_EMBED_COLOR,
+    ELIGMA_YIELD,
+)
 
 log = logging.getLogger(__name__)
 
-PAGE_SIZE = 10
-RARITY_ICON = {3: "<:purple:>", 2: "<:gold:>", 1: "<:blue:>"}
-RARITY_SYMBOL = {3: "◆", 2: "⬟", 1: "●"}
-RARITY_LABEL = {3: "3★", 2: "2★", 1: "1★"}
-RARITY_COLOR = {3: 0xE6B8FF, 2: 0xFFF58C, 1: 0xAAD4FF}
-ELIGMA_YIELD = {1: 1, 2: 10, 3: 50}
-
-# Pool totals for progress bars (standard pool only)
-POOL_TOTALS = {3: 106, 2: 22, 1: 11}
-
+# Local UI labels
 PAGE_LEFT = "◀"
 PAGE_RIGHT = "▶"
 FILTER_ALL = "All"
-FILTER_LABELS = {FILTER_ALL: None, "3★": 3, "2★": 2, "1★": 1}
 
 
 def _bar(current: int, total: int, width: int = 8) -> str:

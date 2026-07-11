@@ -5,12 +5,11 @@ import sqlite3
 import logging
 from pathlib import Path
 
+from .constants import ELIGMA_YIELD
+
 log = logging.getLogger(__name__)
 
 DB_PATH = Path("data/ba_gacha.db")
-
-# Eligma earned per duplicate by rarity
-ELIGMA_YIELD = {1: 1, 2: 10, 3: 50}
 
 
 def _connect() -> sqlite3.Connection:

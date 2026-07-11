@@ -2,6 +2,7 @@
 """Blue Archive Gacha Simulator — in-game-accurate recruitment with live banners."""
 ######################################################################
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -16,15 +17,11 @@ from .data import (
     format_banner_embed,
     roll_rarity,
     get_rates_for_banner,
-    PULL10_RATES,
-    DEFAULT_RATES,
 )
 from .gacha_renderer import render_pull
+from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES
 
 log = logging.getLogger(__name__)
-
-SPARK_TARGET = 200
-BANNER_FILE = Path("data/ba_banner_state.json")
 
 
 def _load_banner_state() -> dict:

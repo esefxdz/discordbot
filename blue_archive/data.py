@@ -12,36 +12,18 @@ from typing import Optional
 
 import aiohttp
 
+from .constants import (
+    BUNDLED_DB,
+    BANNER_API,
+    SCHALE_PORTRAIT,
+    WIKI_CDN,
+    WIKI_NAME_MAP,
+    BANNER_RATES,
+    DEFAULT_RATES,
+    PULL10_RATES,
+)
+
 log = logging.getLogger(__name__)
-
-BUNDLED_DB = Path(__file__).parent / "ba_students.json"
-BANNER_API = "https://api.ennead.cc/buruaka/banner"
-SCHALE_PORTRAIT = "https://raw.githubusercontent.com/SchaleDB/SchaleDB/main/images/student/portrait"
-SCHALE_ICON = "https://raw.githubusercontent.com/SchaleDB/SchaleDB/main/images/student/icon"
-
-# Wiki portrait CDN: static.wikitide.net/bluearchivewiki/{md5[0]}/{md5[:2]}/{filename}
-WIKI_CDN = "https://static.wikitide.net/bluearchivewiki"
-
-# schaleDB Name → wiki Portrait_ filename (without .png extension)
-# Most work automatically by replacing spaces with underscores; these are the exceptions.
-WIKI_NAME_MAP: dict[str, str] = {
-    "Aris": "Arisu",
-    "Shiroko (Cycling)": "Shiroko_(Riding)",
-    "Shun (Small)": "Shun_(Kid)",
-    "Neru (Bunny)": "Neru_(Bunny_Girl)",
-    "Karin (Bunny)": "Karin_(Bunny_Girl)",
-    "Asuna (Bunny)": "Asuna_(Bunny_Girl)",
-    "Utaha (Cheer Squad)": "Utaha_(Cheerleader)",
-    "Hibiki (Cheer Squad)": "Hibiki_(Cheerleader)",
-    "Akane (Bunny)": "Akane_(Bunny_Girl)",
-    "Aris (Maid)": "Arisu_(Maid)",
-    "Toki (Bunny)": "Toki_(Bunny_Girl)",
-    "Kotori (Cheer Squad)": "Kotori_(Cheerleader)",
-    "Kotama (Camp)": "Kotama_(Camping)",
-    "Hare (Camp)": "Hare_(Camping)",
-    "Shiroko Terror": "Shiroko_(Terror)",
-    # Track variants — no wiki portrait; fall back to SchaleDB
-}
 
 
 def _wiki_filename(student: dict) -> str:
@@ -208,24 +190,8 @@ class StudentDB:
 db = StudentDB()
 
 
-# --- Banner types & rates ---------------------------------------------------
-
-# Rate tables matching real Blue Archive gacha:
-#   Regular:  3★ = 3.0%,  2★ = 18.5%,  1★ = 78.5%
-#   Fes:      3★ = 6.0%,  2★ = 18.5%,  1★ = 75.5%
-#   10th pull: 3★ = 3.0%,  2★ = 97.0%,  1★ = 0%  (2★+ guarantee)
-BANNER_RATES: dict[str, tuple[float, float, float]] = {
-    "FesGacha": (0.06, 0.185, 0.755),
-}
-DEFAULT_RATES = (0.03, 0.185, 0.785)
-
-# 10th pull on a 10-pull guarantees 2★ minimum:
-# 3★ = 3.0%, 2★ = 97.0%, 1★ = 0%
-PULL10_RATES = (0.03, 0.97, 0.0)
-
-
 def roll_rarity(rates: tuple[float, float, float]) -> int:
-    """Roll rarity tier given (p_3star, p_2star, p_1star). Returns 3, 2, or 1."""
+    """Roll rarity tier — returns 3, 2, or 1."""
     r = random.random()
     if r < rates[0]:
         return 3
