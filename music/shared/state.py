@@ -10,7 +10,8 @@ class GuildState:
         self.loop:     int                      = LOOP_OFF
         self.autoplay: bool                     = False
         self.current:  wavelink.Playable | None = None
-        self.mode:     str | None               = None
+        self.mode:       str | None               = None
+        self.suppress_np: bool                     = False  # skip auto now-playing embed (set by !play)
 
     def push_history(self, track: wavelink.Playable):
         self.history.insert(0, track)

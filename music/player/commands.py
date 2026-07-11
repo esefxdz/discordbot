@@ -55,10 +55,12 @@ class PlayerCommands:
 
                 if not vc.playing and not vc.paused and st.queue:
                     st.current = st.queue.popleft()
+                    st.suppress_np = True
                     await vc.play(st.current)
                     await self._set_channel_status(vc, st.current)
 
                 st.mode = MODE_MUSIC
+                self._music_channels[ctx.guild.id] = ctx.channel.id
 
                 embed = discord.Embed(
                     title="📋  Playlist Queued",
@@ -73,6 +75,8 @@ class PlayerCommands:
             else:
                 track = results[0]
                 track.extras = {"requester_id": ctx.author.id}
+
+                self._music_channels[ctx.guild.id] = ctx.channel.id
 
                 if vc.playing or vc.paused:
                     st.queue.append(track)
@@ -89,6 +93,7 @@ class PlayerCommands:
                     return await ctx.reply(embed=embed)
 
                 st.current = track
+                st.suppress_np = True
                 await vc.play(track)
                 await self._set_channel_status(vc, track)
                 st.mode = MODE_MUSIC
@@ -159,6 +164,7 @@ class PlayerCommands:
 
         self._voice_channels.pop(ctx.guild.id, None)
         self._radio_channels.pop(ctx.guild.id, None)
+        self._music_channels.pop(ctx.guild.id, None)
         self._locks.pop(ctx.guild.id, None)
 
         msg = "⏹️ Stopped radio and disconnected." if current_mode == MODE_RADIO else "⏹️ Stopped and disconnected."

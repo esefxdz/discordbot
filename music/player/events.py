@@ -2,7 +2,8 @@ import wavelink
 import discord
 import logging
 from discord.ext import commands
-from ..shared.constants import LOOP_TRACK, LOOP_QUEUE, MODE_RADIO
+from ..shared.constants import LOOP_TRACK, LOOP_QUEUE, MODE_RADIO, MODE_MUSIC, C_MAIN
+from ..shared.utils import fmt_duration
 
 log = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class MusicEvents:
                 st.queue.clear()
             self._locks.pop(guild_id, None)
             self._radio_channels.pop(guild_id, None)
+            self._music_channels.pop(guild_id, None)
             await self._clear_channel_status(guild_id)
 
     # ── track end → advance queue ─────────────────────────────────────────────
@@ -118,7 +120,7 @@ class MusicEvents:
             st.mode    = None
             await self._set_channel_status(player)
 
-    # ── track start → update voice status ─────────────────────────────────────
+    # ── track start → update voice status & announce ─────────────────────────
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload):
         player: wavelink.Player = payload.player
@@ -126,6 +128,51 @@ class MusicEvents:
             return
         st         = self.state(player.guild.id)
         st.current = payload.track
-        # Radio sets its own title; only update status for music mode
+
         if st.mode != MODE_RADIO:
             await self._set_channel_status(player, st.current)
+
+            # Send polished now-playing announcement to the music text channel
+            if not st.suppress_np:
+                await self._send_now_playing(player.guild.id, st.current)
+            st.suppress_np = False
+
+    # ── now-playing announcement helper ───────────────────────────────────────
+    async def _send_now_playing(self, guild_id: int, track: wavelink.Playable):
+        """Send a compact, polished 'Now Playing' embed to the music channel."""
+        channel_id = self._music_channels.get(guild_id)
+        if channel_id is None:
+            return
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return
+        channel = guild.get_channel_or_thread(channel_id)
+        if channel is None:
+            self._music_channels.pop(guild_id, None)
+            return
+
+        # Build a clean now-playing embed
+        embed = discord.Embed(color=C_MAIN)
+        desc_parts = [f"## 🎵 {track.title}"]
+        if track.author:
+            desc_parts.append(f"-# {track.author}")
+        embed.description = "\n".join(desc_parts)
+
+        meta: list[str] = []
+        if track.length:
+            meta.append(f"`{fmt_duration(track.length)}`")
+        if track.extras and isinstance(track.extras, dict):
+            requester_id = track.extras.get("requester_id")
+            if requester_id:
+                meta.append(f"Requested by <@{requester_id}>")
+        if meta:
+            embed.add_field(name="\u200b", value=" · ".join(meta), inline=False)
+
+        if track.artwork:
+            embed.set_thumbnail(url=track.artwork)
+        embed.set_footer(text="yuuka music")
+
+        try:
+            await channel.send(embed=embed)
+        except Exception:
+            log.warning(f"Failed to send now-playing message in guild {guild_id}", exc_info=True)

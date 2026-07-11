@@ -34,6 +34,7 @@ class Music(PlayerCommands, QueueCommands, MusicEvents, RadioCommands, RadioEven
         self._states:         dict[int, GuildState]    = {}
         self._voice_channels: dict[int, int]           = {}  # guild_id → voice channel id (for status cleanup)
         self._radio_channels: dict[int, int]           = {}  # guild_id → text channel id (for drop notifications)
+        self._music_channels: dict[int, int]           = {}  # guild_id → text channel id (for now-playing announcements)
         self._locks:          dict[int, asyncio.Lock]  = {}
 
         # Load radio stations
