@@ -11,8 +11,7 @@ BG_PATH = ASSETS_DIR / "gacha_bg.png"
 
 # ── APIs ────────────────────────────────────────────────────────────────────
 BANNER_API = "https://api.ennead.cc/buruaka/banner"
-SCHALE_PORTRAIT = "https://raw.githubusercontent.com/SchaleDB/SchaleDB/main/images/student/portrait"
-WIKI_CDN = "https://static.wikitide.net/bluearchivewiki"
+JOEXYZ_CDN = "https://ba.joexyz.online/cdn/v2/images"
 
 # ── Gacha rates (matching real Blue Archive) ────────────────────────────────
 # Regular/Pickup:   3★ = 3.0%,  2★ = 18.5%,  1★ = 78.5%
@@ -69,24 +68,44 @@ PAGE_SIZE = 10
 POOL_TOTALS = {3: 106, 2: 22, 1: 11}  # standard-pool size for progress bars
 FILTER_LABELS: dict[str, int | None] = {"All": None, "3★": 3, "2★": 2, "1★": 1}
 
-# ── Wiki name overrides (SchaleDB name → wiki Portrait_ filename stem) ──────
-WIKI_NAME_MAP: dict[str, str] = {
-    "Aris": "Arisu",
-    "Shiroko (Cycling)": "Shiroko_(Riding)",
-    "Shun (Small)": "Shun_(Kid)",
-    "Neru (Bunny)": "Neru_(Bunny_Girl)",
-    "Karin (Bunny)": "Karin_(Bunny_Girl)",
-    "Asuna (Bunny)": "Asuna_(Bunny_Girl)",
-    "Utaha (Cheer Squad)": "Utaha_(Cheerleader)",
-    "Hibiki (Cheer Squad)": "Hibiki_(Cheerleader)",
-    "Akane (Bunny)": "Akane_(Bunny_Girl)",
-    "Aris (Maid)": "Arisu_(Maid)",
-    "Toki (Bunny)": "Toki_(Bunny_Girl)",
-    "Kotori (Cheer Squad)": "Kotori_(Cheerleader)",
-    "Kotama (Camp)": "Kotama_(Camping)",
-    "Hare (Camp)": "Hare_(Camping)",
-    "Shiroko Terror": "Shiroko_(Terror)",
+# ── CDN icon slug mapping (SchaleDB variant suffix → joexyz CDN slug suffix) ─
+# Base names without a parenthesised variant use the lowercased name directly.
+# "Aris" is a special case — the CDN uses "aris", not "arisu".
+CDN_SUFFIX_MAP: dict[str, str] = {
+    "New Year": "newyear",
+    "Hot Spring": "onsen",
+    "Bunny": "bunnygirl",
+    "Cheer Squad": "cheerleader",
+    "Camp": "camp",
+    "Cycling": "cycling",
+    "Dress": "dress",
+    "Small": "small",
+    "Maid": "maid",
+    "Track": "track",
+    "Swimsuit": "swimsuit",
+    "Band": "band",
+    "Christmas": "christmas",
+    "Casual": "casual",
+    "Guide": "guide",
 }
+
+def cdn_icon_slug(name: str) -> str:
+    """Convert a SchaleDB student Name to the joexyz CDN icon filename slug."""
+    # Normalise "Name Terror" into the same parenthesised path
+    if name.endswith(" Terror"):
+        name = name[:-7] + " (Terror)"
+    # "Aris" is "aris" on the CDN, not "arisu"
+    if name == "Aris":
+        return "aris"
+
+    if "(" in name:
+        base, rest = name.split("(", 1)
+        base = base.strip().lower().replace(" ", "_")
+        variant = rest.rstrip(")").strip()
+        suffix = CDN_SUFFIX_MAP.get(variant, variant.lower().replace(" ", "_"))
+        return f"{base}_{suffix}"
+
+    return name.lower().replace(" ", "_")
 
 # ── Font paths ──────────────────────────────────────────────────────────────
 FONT_PATHS = [

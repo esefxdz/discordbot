@@ -45,55 +45,41 @@ FOOTER_FONT = _get_font(18, bold=False)
 # ── Image fetching ─────────────────────────────────────────────────────────
 
 async def _fetch_portrait(session: aiohttp.ClientSession, student: dict) -> Optional[Image.Image]:
-    """Download a student's face portrait.
+    """Download a student's face icon from the joexyz CDN.
 
-    Tries the wiki CDN first (252x204 face image). Falls back to SchaleDB
-    full-body sprite with an upper-body crop on failure.
+    Uses the student icon CDN (face/upper-body crop). Falls back to the
+    skill-portrait (full-body art) if the icon is unavailable.
     """
-    student_id = student["Id"]
-
-    # 1. Try wiki face portrait
-    wiki_url = db.wiki_portrait(student)
+    # 1. Try the face icon
+    icon_url = db.cdn_icon(student)
     try:
-        async with session.get(wiki_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+        async with session.get(icon_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
             if resp.status == 200:
                 data = await resp.read()
                 return Image.open(io.BytesIO(data)).convert("RGBA")
     except Exception:
-        log.debug("Wiki portrait failed for %s, trying SchaleDB fallback", student["Name"])
+        log.debug("CDN icon failed for %s, trying skill portrait fallback", student["Name"])
 
-    # 2. Fallback: SchaleDB full-body sprite with upper-body crop
-    schale_url = db.schale_portrait(student_id)
+    # 2. Fallback: skill portrait (full-body character art)
+    sp_url = db.cdn_skill_portrait(student)
     try:
-        async with session.get(schale_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+        async with session.get(sp_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
             if resp.status == 200:
                 data = await resp.read()
                 img = Image.open(io.BytesIO(data)).convert("RGBA")
-                # Crop top portion for face/upper-body (source is ~614x1024)
+                # Skill portraits are full-body; crop upper portion for card fit
                 p_w, p_h = img.size
                 crop_h = int(p_w * 1.20)
                 if crop_h < p_h:
                     img = img.crop((0, 0, p_w, crop_h))
                 return img
     except Exception:
-        log.exception("Failed to fetch portrait for student %d", student_id)
+        log.exception("Failed to fetch any portrait for %s", student["Name"])
 
     return None
 
 
 # ── Drawing helpers ────────────────────────────────────────────────────────
-
-def _rounded_rect(
-    draw: ImageDraw.Draw,
-    xy: tuple[int, int, int, int],
-    radius: int,
-    fill: Optional[tuple] = None,
-    outline: Optional[tuple] = None,
-    width: int = 3,
-) -> None:
-    """Draw a rounded rectangle."""
-    draw.rounded_rectangle(xy, radius=radius, fill=fill, outline=outline, width=width)
-
 
 def _star_polygon(cx: int, cy: int, outer_r: int, inner_r: int) -> list[tuple[int, int]]:
     """Generate vertex list for a 5-pointed star centered at (cx, cy).
@@ -130,17 +116,6 @@ def _draw_star_icons(
         # Shadow
         draw.polygon([(p[0] + 1, p[1] + 1) for p in pts], fill=(0, 0, 0, 100))
         draw.polygon(pts, fill=color)
-
-
-def _draw_rounded_rect(
-    draw: ImageDraw.Draw,
-    xy: tuple[int, int, int, int],
-    radius: int,
-    fill: Optional[tuple] = None,
-    outline: Optional[tuple] = None,
-    width: int = 3,
-) -> None:
-    _rounded_rect(draw, xy, radius, fill, outline, width)
 
 
 # ── Main render ────────────────────────────────────────────────────────────
@@ -257,18 +232,17 @@ def _draw_card(
     bg = RARITY_BG.get(rarity, (20, 20, 20))
 
     # Card background with rounded corners
-    _draw_rounded_rect(draw, (x, y, x + CARD_W, y + CARD_H), radius=CARD_RADIUS, fill=bg + (255,))
+    draw.rounded_rectangle((x, y, x + CARD_W, y + CARD_H), radius=CARD_RADIUS, fill=bg + (255,))
     # Card border
-    _draw_rounded_rect(
-        draw, (x, y, x + CARD_W, y + CARD_H), radius=CARD_RADIUS, outline=color, width=2
+    draw.rounded_rectangle(
+        (x, y, x + CARD_W, y + CARD_H), radius=CARD_RADIUS, outline=color, width=2
     )
 
     # ── Star banner strip at top ────────────────────────────────────────
     banner_top = y + 1
     banner_bottom = y + STAR_BANNER_H
     # Semi-transparent dark strip
-    _draw_rounded_rect(
-        draw,
+    draw.rounded_rectangle(
         (x + 3, banner_top, x + CARD_W - 3, banner_bottom),
         radius=CARD_RADIUS - 2,
         fill=(0, 0, 0, 80),
@@ -299,7 +273,7 @@ def _draw_card(
         poy = py + (ph - new_h) // 2
         canvas.paste(portrait, (pox, poy), portrait if portrait.mode == "RGBA" else None)
     else:
-        _draw_rounded_rect(draw, (px, py, px + pw, py + ph), radius=6, fill=(30, 30, 40, 180))
+        draw.rounded_rectangle((px, py, px + pw, py + ph), radius=6, fill=(30, 30, 40, 180))
         ph_font = _get_font(16)
         msg = "No Image"
         mw = draw.textlength(msg, font=ph_font)
@@ -307,8 +281,7 @@ def _draw_card(
 
     # ── Name strip at bottom ────────────────────────────────────────────
     name_y = y + CARD_H - NAME_STRIP_H + 2
-    _draw_rounded_rect(
-        draw,
+    draw.rounded_rectangle(
         (x + 3, name_y, x + CARD_W - 3, y + CARD_H - 3),
         radius=CARD_RADIUS - 3,
         fill=(0, 0, 0, 150),

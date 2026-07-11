@@ -1,11 +1,9 @@
 #this module loads student data and fetches live banner info from the api##
 """Student and banner data layer for the Blue Archive gacha simulator."""
 ######################################################################
-import hashlib
 import json
 import logging
 import random
-import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -15,36 +13,14 @@ import aiohttp
 from .constants import (
     BUNDLED_DB,
     BANNER_API,
-    SCHALE_PORTRAIT,
-    WIKI_CDN,
-    WIKI_NAME_MAP,
+    JOEXYZ_CDN,
+    cdn_icon_slug,
     BANNER_RATES,
     DEFAULT_RATES,
     PULL10_RATES,
 )
 
 log = logging.getLogger(__name__)
-
-
-def _wiki_filename(student: dict) -> str:
-    """Build the wiki Portrait_ filename (no extension) for a student."""
-    name = student["Name"]
-    mapped = WIKI_NAME_MAP.get(name)
-    if mapped is not None:
-        return mapped
-    return name.replace(" ", "_")
-
-
-def wiki_portrait_url(student: dict) -> str:
-    """Compute the CDN URL for a student's wiki portrait (252x204 face image)."""
-    filename = f"Portrait_{_wiki_filename(student)}.png"
-    h = hashlib.md5(filename.encode()).hexdigest()
-    return f"{WIKI_CDN}/{h[0]}/{h[:2]}/{urllib.parse.quote(filename)}"
-
-
-def schale_portrait_url(student_id: int) -> str:
-    """Full-body sprite URL (fallback if wiki portrait is unavailable)."""
-    return f"{SCHALE_PORTRAIT}/{student_id}.webp"
 
 
 class StudentDB:
@@ -177,13 +153,14 @@ class StudentDB:
         pool = self.by_rarity.get(rarity, [])
         return random.choice(pool) if pool else random.choice(self.students)
 
-    def wiki_portrait(self, student: dict) -> str:
-        """Wiki face-portrait CDN URL for a student dict (252x204)."""
-        return wiki_portrait_url(student)
+    def cdn_icon(self, student: dict) -> str:
+        """joexyz CDN icon URL for a student (face/upper-body)."""
+        slug = cdn_icon_slug(student["Name"])
+        return f"{JOEXYZ_CDN}/students/icons/{slug}.png"
 
-    def schale_portrait(self, student_id: int) -> str:
-        """SchaleDB full-body sprite URL (fallback)."""
-        return schale_portrait_url(student_id)
+    def cdn_skill_portrait(self, student: dict) -> str:
+        """joexyz CDN skill-portrait URL (full-body fallback)."""
+        return f"{JOEXYZ_CDN}/skill-portraits/Skill_Portrait_{student['DevName']}.png"
 
 
 # Global singleton

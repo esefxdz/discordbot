@@ -18,7 +18,10 @@ class SysInfo(commands.Cog):
         await ctx.reply('\n'.join(sys_commands))
     ######################################################################
 
-    @commands.command()
+    @commands.command() 
+
+    
+
     async def fetch(self, ctx):
         result = subprocess.run(['fastfetch', '--pipe', '--logo', 'none'], capture_output=True, text=True)
         clean = self.strip_ansi(result.stdout)
