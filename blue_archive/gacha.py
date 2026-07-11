@@ -2,15 +2,14 @@
 """Blue Archive Gacha Simulator — in-game-accurate recruitment with live banners."""
 ######################################################################
 import asyncio
-import json
 import logging
-import random
 from pathlib import Path
 from typing import Optional
 
 import discord
 from discord.ext import commands
 
+from . import db as gacha_db
 from .data import (
     db,
     fetch_banners,
@@ -24,40 +23,35 @@ from .gacha_renderer import render_pull
 
 log = logging.getLogger(__name__)
 
-STATE_FILE = Path("data/ba_gacha_state.json")
 SPARK_TARGET = 200
-_state_lock = asyncio.Lock()
+BANNER_FILE = Path("data/ba_banner_state.json")
 
 
-def _load_state() -> dict:
-    """Load per-user gacha state from disk."""
-    if STATE_FILE.exists():
-        with open(STATE_FILE, "r") as f:
+def _load_banner_state() -> dict:
+    """Which banner each user has picked. Lightweight JSON, separate from SQLite."""
+    if BANNER_FILE.exists():
+        import json
+        with open(BANNER_FILE, "r") as f:
             return json.load(f)
     return {}
 
 
-def _save_state(state: dict) -> None:
-    """Persist per-user gacha state to disk."""
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(STATE_FILE, "w") as f:
+def _save_banner_state(state: dict) -> None:
+    import json
+    BANNER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(BANNER_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
 
-async def _get_user_state(user_id: int) -> dict:
-    async with _state_lock:
-        state = _load_state()
-    key = str(user_id)
-    if key not in state:
-        state[key] = {"banner_id": None, "spark": 0, "history": []}
-    return state[key]
+def _get_banner_id(user_id: int) -> Optional[str]:
+    state = _load_banner_state()
+    return state.get(str(user_id))
 
 
-async def _set_user_state(user_id: int, user_state: dict) -> None:
-    async with _state_lock:
-        state = _load_state()
-        state[str(user_id)] = user_state
-        _save_state(state)
+def _set_banner_id(user_id: int, banner_id: Optional[str]) -> None:
+    state = _load_banner_state()
+    state[str(user_id)] = banner_id
+    _save_banner_state(state)
 
 
 class BlueArchiveGacha(commands.Cog):
@@ -71,10 +65,10 @@ class BlueArchiveGacha(commands.Cog):
     # ── Lifecycle ───────────────────────────────────────────────────────
 
     async def cog_load(self) -> None:
-        """Load student DB and fetch banners on startup."""
+        """Load student DB, init SQLite, and fetch banners on startup."""
         db.load()
+        gacha_db.init_db()
         await self._refresh_banners()
-        # Background refresh every 6 hours
         self._refresh_task = self.bot.loop.create_task(self._periodic_refresh())
 
     async def cog_unload(self) -> None:
@@ -150,9 +144,7 @@ class BlueArchiveGacha(commands.Cog):
             return
 
         if choice == "regular":
-            user_state = await _get_user_state(ctx.author.id)
-            user_state["banner_id"] = "regular"
-            await _set_user_state(ctx.author.id, user_state)
+            _set_banner_id(ctx.author.id, "regular")
             await ctx.reply(
                 "Active banner set to **Regular Recruitment** (permanent pool, no rate-up).\n"
                 "Use `!pull` to recruit!"
@@ -180,15 +172,15 @@ class BlueArchiveGacha(commands.Cog):
         rateups = ", ".join(banner.get("rateups", [])) or "Standard Pool"
         gtype = banner.get("gachaType", "PickupGacha")
 
-        user_state = await _get_user_state(ctx.author.id)
-        user_state["banner_id"] = banner["id"]
-        user_state["spark"] = 0  # reset spark on banner switch
-        await _set_user_state(ctx.author.id, user_state)
+        _set_banner_id(ctx.author.id, str(banner["id"]))
+
+        # Show current spark for this banner
+        spark = gacha_db.get_spark(ctx.author.id, str(banner["id"]))
 
         await ctx.reply(
             f"Active banner: **{gtype}**\n"
             f"Rate-up: {rateups}\n"
-            f"Spark count reset to 0. Use `!pull` to recruit!"
+            f"Recruitment Points: {spark}/{SPARK_TARGET}. Use `!pull` to recruit!"
         )
 
     @commands.command(name="pull")
@@ -204,8 +196,8 @@ class BlueArchiveGacha(commands.Cog):
         else:
             count = 10
 
-        user_state = await _get_user_state(ctx.author.id)
-        banner_id = user_state.get("banner_id")
+        user_id = ctx.author.id
+        banner_id = _get_banner_id(user_id)
 
         # Determine banner info
         try:
@@ -255,16 +247,19 @@ class BlueArchiveGacha(commands.Cog):
 
             pulls.append(student)
 
-        # Update spark
-        user_state["spark"] = user_state.get("spark", 0) + count
-        # Trim history to last 50
-        history = user_state.get("history", [])
-        history.extend(p["Id"] for p in pulls)
-        user_state["history"] = history[-50:]
-        await _set_user_state(ctx.author.id, user_state)
+        # Save pulls to inventory (eligma for dupes) and update spark
+        user_id = ctx.author.id
+        spark_banner = str(banner_id) if banner_id else "regular"
+        spark = gacha_db.add_spark(user_id, spark_banner, count)
+
+        eligma_earned = 0
+        for p in pulls:
+            e = gacha_db.add_pull(user_id, p["Id"], p["StarGrade"])
+            eligma_earned += e
+
+        dupe_msg = f" | +{eligma_earned} Eligma from dupes" if eligma_earned else ""
 
         # Render result image
-        spark = user_state["spark"]
         try:
             async with ctx.typing():
                 img_bytes = await render_pull(pulls, banner_name, spark)
@@ -277,21 +272,24 @@ class BlueArchiveGacha(commands.Cog):
             await ctx.reply(f"Render failed: {e}")
             return
 
-        # Send image only
+        # Send image with spark+eligma caption
         try:
             file = discord.File(img_bytes, filename="gacha_result.png")
             try:
                 await teaser.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            await ctx.reply(file=file)
+            await ctx.reply(
+                f"Recruitment Points: {spark}/{SPARK_TARGET}{dupe_msg}",
+                file=file,
+            )
         except Exception as e:
             log.exception("Failed to send result image")
             await ctx.reply(f"Failed to send result: {e}")
 
     @commands.command(name="spark")
     async def spark(self, ctx: commands.Context, *, character_name: str = "") -> None:
-        """Claim a rate-up student from your active banner (costs 200 recruitment points).
+        """Claim a rate-up student using 200 Recruitment Points from your active banner.
 
         Usage: !spark <character name>
         """
@@ -299,12 +297,14 @@ class BlueArchiveGacha(commands.Cog):
             await ctx.reply("Usage: `!spark <character name>` — e.g., `!spark Aru`")
             return
 
-        user_state = await _get_user_state(ctx.author.id)
-        spark = user_state.get("spark", 0)
+        user_id = ctx.author.id
+        banner_id = str(_get_banner_id(user_id) or "regular")
+        spark = gacha_db.get_spark(user_id, banner_id)
 
         if spark < SPARK_TARGET:
             await ctx.reply(
-                f"You need {SPARK_TARGET} recruitment points to spark. You have {spark}."
+                f"You need {SPARK_TARGET} Recruitment Points to spark. "
+                f"You have {spark} on this banner."
             )
             return
 
@@ -314,22 +314,25 @@ class BlueArchiveGacha(commands.Cog):
             await ctx.reply(f"Character **{character_name}** not found in the database.")
             return
 
-        # Deduct spark
-        user_state["spark"] = spark - SPARK_TARGET
-        await _set_user_state(ctx.author.id, user_state)
+        # Deduct spark and add student to inventory
+        if not gacha_db.spend_spark(user_id, banner_id):
+            await ctx.reply("Not enough Recruitment Points.")
+            return
+        gacha_db.add_pull(user_id, student["Id"], student["StarGrade"])
+        remaining = gacha_db.get_spark(user_id, banner_id)
 
         await ctx.reply(
-            f"**Spark!** You claimed **{student['Name']}** ({student['StarGrade']}*, {student.get('School', 'Unknown')})!\n"
-            f"Remaining recruitment points: {user_state['spark']}"
+            f"**Spark!** You claimed **{student['Name']}** "
+            f"({student['StarGrade']}*, {student.get('School', 'Unknown')})!\n"
+            f"Remaining Recruitment Points: {remaining}"
         )
 
     @gacha.command(name="info")
     async def gacha_info(self, ctx: commands.Context) -> None:
-        """Show your current gacha state — active banner, spark count, and recent pulls."""
-        user_state = await _get_user_state(ctx.author.id)
-        banner_id = user_state.get("banner_id", "regular")
-        spark = user_state.get("spark", 0)
-        history = user_state.get("history", [])
+        """Show your active banner, spark count, and collection summary."""
+        user_id = ctx.author.id
+        banner_id = str(_get_banner_id(user_id) or "regular")
+        spark = gacha_db.get_spark(user_id, banner_id)
 
         # Banner name
         banner_name = "Regular Recruitment"
@@ -356,12 +359,14 @@ class BlueArchiveGacha(commands.Cog):
             name="Recruitment Points", value=f"{spark}/{SPARK_TARGET}", inline=True
         )
         embed.add_field(
-            name="Total Pulls", value=str(len(history)), inline=True
+            name="Eligma", value=str(gacha_db.get_eligma(user_id)), inline=True
         )
-        if recent:
-            embed.add_field(
-                name="Recent Pulls", value="\n".join(recent) or "None", inline=False
-            )
+        stats = gacha_db.get_inventory_stats(user_id)
+        embed.add_field(
+            name="Collection",
+            value=f"{stats['unique']} unique students from {stats['total_pulls']} total pulls",
+            inline=False,
+        )
 
         await ctx.reply(embed=embed)
 
