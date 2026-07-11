@@ -18,8 +18,6 @@ class SysInfo(commands.Cog):
         await ctx.reply('\n'.join(sys_commands))
     ######################################################################
 
-    @commands.command() 
-
     
 
     async def fetch(self, ctx):
