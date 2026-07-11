@@ -267,16 +267,29 @@ class BlueArchiveGacha(commands.Cog):
 
         # Render result image
         spark = user_state["spark"]
-        async with ctx.typing():
-            img_bytes = await render_pull(pulls, banner_name, spark)
-
-        # Send image only — the picture says it all
-        file = discord.File(img_bytes, filename="gacha_result.png")
         try:
-            await teaser.delete()
-        except (discord.NotFound, discord.Forbidden):
-            pass
-        await ctx.reply(file=file)
+            async with ctx.typing():
+                img_bytes = await render_pull(pulls, banner_name, spark)
+        except Exception as e:
+            log.exception("Render failed")
+            try:
+                await teaser.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await ctx.reply(f"Render failed: {e}")
+            return
+
+        # Send image only
+        try:
+            file = discord.File(img_bytes, filename="gacha_result.png")
+            try:
+                await teaser.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+            await ctx.reply(file=file)
+        except Exception as e:
+            log.exception("Failed to send result image")
+            await ctx.reply(f"Failed to send result: {e}")
 
     @commands.command(name="spark")
     async def spark(self, ctx: commands.Context, *, character_name: str = "") -> None:

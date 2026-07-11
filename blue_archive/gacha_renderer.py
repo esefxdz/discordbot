@@ -201,9 +201,15 @@ async def render_pull(
     _draw_footer(draw, spark_count)
 
     # ── Fetch all portraits ─────────────────────────────────────────────
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=60, connect=10)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         portrait_tasks = [_fetch_portrait(session, p) for p in pulls]
-        portraits = await asyncio.gather(*portrait_tasks)
+        portraits = await asyncio.gather(*portrait_tasks, return_exceptions=True)
+        # Unwrap exceptions: failed fetches become None
+        for i, result in enumerate(portraits):
+            if isinstance(result, Exception):
+                log.warning("Portrait %d (%s) failed: %s", pulls[i]["Id"], pulls[i]["Name"], result)
+                portraits[i] = None
 
     # ── Draw cards in grid ──────────────────────────────────────────────
     for idx, (student, portrait) in enumerate(zip(pulls, portraits)):
