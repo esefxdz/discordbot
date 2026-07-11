@@ -90,11 +90,15 @@ class BlueArchiveGacha(commands.Cog):
 
     @commands.group(name="gacha", aliases=["banners", "g"], invoke_without_command=True)
     async def gacha(self, ctx: commands.Context) -> None:
-        """Show currently active recruitment banners from the live API."""
+        """Show available banners and commands.
+
+        Without a subcommand, lists current banners.
+        Use !gacha help for full command reference.
+        """
         try:
             await asyncio.wait_for(self._cache_ready.wait(), timeout=15.0)
         except asyncio.TimeoutError:
-            pass  # proceed with whatever we have
+            pass
         banners = self._all_banners()
 
         if not banners:
@@ -105,19 +109,22 @@ class BlueArchiveGacha(commands.Cog):
                             "`!gacha pick regular`",
                 color=0x5BA0D0,
             )
+            embed.set_footer(text="!gacha help — see all commands")
             await ctx.reply(embed=embed)
             return
 
-        # Build embed
         embed = discord.Embed(
             title="Recruitment — Available Banners",
-            description="Use `!gacha pick <number>` to select a banner, then `!pull` to recruit!\n"
-                        "Or `!gacha pick regular` for the permanent banner.\n"
-                        "`!gacha info` to see your status.",
+            description=(
+                "**Commands:** `!gacha pick <n>` • `!gacha info` • "
+                "`!pull` • `!pull single` • `!spark <name>` • "
+                "`!inv` • `!eligma`\n"
+                "Use `!gacha help` for details.\n"
+            ),
             color=0x5BA0D0,
         )
 
-        for i, banner in enumerate(banners[:8]):  # Discord embed field limit
+        for i, banner in enumerate(banners[:8]):
             embed.add_field(
                 name="",
                 value=format_banner_embed(banner, i),
@@ -125,6 +132,43 @@ class BlueArchiveGacha(commands.Cog):
             )
 
         embed.set_footer(text="Banner data from BlueArchiveAPI • Updates every 6 hours")
+        await ctx.reply(embed=embed)
+
+    @gacha.command(name="help")
+    async def gacha_help(self, ctx: commands.Context) -> None:
+        """Show all gacha-related commands."""
+        embed = discord.Embed(
+            title="Gacha Commands",
+            color=0x5BA0D0,
+        )
+        embed.add_field(
+            name="Banners",
+            value=(
+                "`!gacha` — list current banners\n"
+                "`!gacha pick <n>` — select banner #n\n"
+                "`!gacha pick regular` — permanent pool\n"
+                "`!gacha info` — your status & spark"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Pulling",
+            value=(
+                "`!pull` — 10-pull (guaranteed 2★+ on 10th)\n"
+                "`!pull single` — single pull\n"
+                "`!spark <name>` — claim rate-up at 200 pts"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Collection",
+            value=(
+                "`!inv` — interactive collection browser\n"
+                "`!inv @user` — view someone else's\n"
+                "`!eligma` — check your eligma balance"
+            ),
+            inline=False,
+        )
         await ctx.reply(embed=embed)
 
     @gacha.command(name="pick")
