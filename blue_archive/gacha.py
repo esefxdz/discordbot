@@ -19,7 +19,7 @@ from .data import (
     get_rates_for_banner,
 )
 from .gacha_renderer import render_pull
-from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES
+from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES, GACHA_ANIM_PATH
 
 log = logging.getLogger(__name__)
 
@@ -258,8 +258,8 @@ class BlueArchiveGacha(commands.Cog):
                 banner_name = f"{gtype} — {rateups}"
                 rates = get_rates_for_banner(banner)
 
-        # "Opening envelope" teaser
-        teaser = await ctx.reply("Opening recruitment envelope" + ("s..." if count > 1 else "..."))
+        # "Opening envelope" teaser — send animation GIF
+        teaser = await ctx.reply(file=discord.File(str(GACHA_ANIM_PATH)))
 
         # Build the banner-specific character pool
         if banner_id and banner_id != "regular" and banner:

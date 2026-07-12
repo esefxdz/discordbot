@@ -8,6 +8,7 @@ BUNDLED_DB = Path(__file__).parent / "ba_students.json"
 BANNER_FILE = Path("data/ba_banner_state.json")
 ASSETS_DIR = Path(__file__).parent / "assets"
 BG_PATH = ASSETS_DIR / "gacha_bg.png"
+GACHA_ANIM_PATH = ASSETS_DIR / "Arona_Blue_Gacha_Animation.gif"
 
 # ── APIs ────────────────────────────────────────────────────────────────────
 BANNER_API = "https://api.ennead.cc/buruaka/banner"
