@@ -158,6 +158,7 @@ class RadioCommands:
 
             # Spawn ICY metadata poller if this station supports it
             if station["url"] in self._icy_urls:
+                log.info("Starting ICY poller for %s", station["name"])
                 self._cancel_icy_poller(guild.id)
                 poller = IcyMetadataPoller(
                     station["url"],
@@ -166,6 +167,9 @@ class RadioCommands:
                     ),
                 )
                 self._icy_tasks[guild.id] = asyncio.create_task(poller.run())
+            else:
+                log.info("No ICY support for %s (%s not in set of %d URLs)",
+                         station["name"], station["url"], len(self._icy_urls))
 
     # ── ICY now-playing embed ─────────────────────────────────────────────────
     async def _send_icy_now_playing(self, guild_id: int, station_name: str, title: str) -> None:

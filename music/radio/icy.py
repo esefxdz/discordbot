@@ -9,21 +9,11 @@ from urllib.parse import urlparse
 log = logging.getLogger(__name__)
 
 _TITLE_RE = re.compile(r"StreamTitle='([^']*)';")
-
-# Some servers send a "StreamUrl='...'" which we can ignore
 _CHUNK = 8192
 
 
 class IcyMetadataPoller:
-    """Polls an Icecast/SHOUTcast stream for ICY metadata and fires a callback on title change.
-
-    Usage:
-        poller = IcyMetadataPoller("http://...", callback)
-        task = asyncio.create_task(poller.run())
-        ...
-        poller.stop()
-        task.cancel()
-    """
+    """Polls an Icecast/SHOUTcast stream for ICY metadata and fires a callback on title change."""
 
     def __init__(
         self,
@@ -39,19 +29,20 @@ class IcyMetadataPoller:
 
     async def run(self) -> None:
         """Main loop — connect, poll, reconnect on failure."""
+        log.info("ICY poller started for %s", self._url)
         while not self._stop.is_set():
             try:
                 await self._poll_loop()
             except asyncio.CancelledError:
                 return
             except Exception:
-                log.debug(f"ICY poller disconnected, reconnecting in 10s: {self._url}")
-            # Back off before reconnecting
+                log.warning("ICY poller error for %s, retrying in 10s", self._url, exc_info=True)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=10.0)
-                return  # stop() was called
+                return
             except asyncio.TimeoutError:
                 pass
+        log.info("ICY poller stopped for %s", self._url)
 
     def stop(self) -> None:
         """Signal the poller to stop (doesn't cancel the task)."""
@@ -67,12 +58,9 @@ class IcyMetadataPoller:
         if parsed.query:
             path += "?" + parsed.query
 
-        # TLS for HTTPS
         ssl_ctx = ssl.create_default_context() if parsed.scheme == "https" else None
-
         reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
         try:
-            # Send HTTP GET with Icy-MetaData header
             request = (
                 f"GET {path} HTTP/1.0\r\n"
                 f"Host: {host}\r\n"
@@ -83,18 +71,54 @@ class IcyMetadataPoller:
             writer.write(request.encode())
             await writer.drain()
 
-            # Read status line + headers
-            headers = await self._read_headers(reader)
+            # Read status line
+            status_line = await reader.readline()
+            status_text = status_line.decode("utf-8", errors="replace").strip()
+            log.info("ICY %s → %s", self._url, status_text)
 
+            # Follow redirect (301/302)
+            redirect_count = 0
+            while "30" in status_text.split(" ")[:2] and redirect_count < 5:
+                headers, _ = await self._read_headers(reader)
+                location = headers.get("location", "")
+                writer.close()
+                if not location:
+                    log.warning("ICY redirect without Location header: %s", self._url)
+                    return
+                log.info("ICY redirect %s → %s", self._url, location)
+                parsed = urlparse(location)
+                host = parsed.hostname or host
+                port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                path = (parsed.path or "/") + ("?" + parsed.query if parsed.query else "")
+                ssl_ctx = ssl.create_default_context() if parsed.scheme == "https" else None
+                reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
+                # Re-send request
+                request2 = (
+                    f"GET {path} HTTP/1.0\r\n"
+                    f"Host: {host}\r\n"
+                    f"Icy-MetaData: 1\r\n"
+                    f"User-Agent: yuuka-radio/1.0\r\n"
+                    f"\r\n"
+                )
+                writer.write(request2.encode())
+                await writer.drain()
+                status_line = await reader.readline()
+                status_text = status_line.decode("utf-8", errors="replace").strip()
+                redirect_count += 1
+
+            # Read remaining headers
+            headers, _ = await self._read_headers(reader)
             metaint = int(headers.get("icy-metaint", 0))
             if metaint <= 0:
-                log.debug(f"No ICY metadata on {self._url}")
-                return  # stream has no metadata support
+                log.warning("ICY no metaint for %s (status: %s, got %d headers)",
+                            self._url, status_text, len(headers))
+                return
+
+            log.info("ICY polling %s — metaint=%d", self._url, metaint)
 
             # Poll: skip audio → read metadata length → parse title
             while not self._stop.is_set():
                 await self._skip(reader, metaint)
-
                 length_byte = await reader.readexactly(1)
                 length = length_byte[0] * 16
                 if length > 0:
@@ -102,10 +126,11 @@ class IcyMetadataPoller:
                     title = self._extract_title(raw.decode("utf-8", errors="replace"))
                     if title and title != self._last_title:
                         self._last_title = title
+                        log.info("ICY now playing: %s", title)
                         try:
                             await self._on_title(title)
                         except Exception:
-                            log.debug("ICY callback error", exc_info=True)
+                            log.warning("ICY callback error", exc_info=True)
         finally:
             writer.close()
             try:
@@ -114,20 +139,22 @@ class IcyMetadataPoller:
                 pass
 
     @staticmethod
-    async def _read_headers(reader: asyncio.StreamReader) -> dict[str, str]:
-        """Read HTTP response headers into a lowercase-keyed dict."""
+    async def _read_headers(reader: asyncio.StreamReader) -> tuple[dict[str, str], str]:
+        """Read headers into a lowercase-keyed dict. Returns (headers, raw_text)."""
         headers: dict[str, str] = {}
+        raw = ""
         while True:
             line = await reader.readline()
             if not line:
                 break
             text = line.decode("utf-8", errors="replace").strip()
+            raw += text + "\n"
             if not text:
-                break  # empty line = end of headers
+                break
             if ":" in text:
                 key, _, value = text.partition(":")
                 headers[key.strip().lower()] = value.strip()
-        return headers
+        return headers, raw
 
     @staticmethod
     async def _skip(reader: asyncio.StreamReader, n: int) -> None:
