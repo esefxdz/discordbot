@@ -53,7 +53,7 @@ async def _fetch_portrait(session: aiohttp.ClientSession, student: dict) -> Opti
     # 1. Try the face icon
     icon_url = db.cdn_icon(student)
     try:
-        async with session.get(icon_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+        async with session.get(icon_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
             if resp.status == 200:
                 data = await resp.read()
                 return Image.open(io.BytesIO(data)).convert("RGBA")
@@ -63,7 +63,7 @@ async def _fetch_portrait(session: aiohttp.ClientSession, student: dict) -> Opti
     # 2. Fallback: skill portrait (full-body character art)
     sp_url = db.cdn_skill_portrait(student)
     try:
-        async with session.get(sp_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+        async with session.get(sp_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
             if resp.status == 200:
                 data = await resp.read()
                 img = Image.open(io.BytesIO(data)).convert("RGBA")
@@ -149,7 +149,7 @@ async def render_pull(
     _draw_footer(draw, spark_count)
 
     # ── Fetch all portraits ─────────────────────────────────────────────
-    timeout = aiohttp.ClientTimeout(total=60, connect=10)
+    timeout = aiohttp.ClientTimeout(total=30, connect=5)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         portrait_tasks = [_fetch_portrait(session, p) for p in pulls]
         portraits = await asyncio.gather(*portrait_tasks, return_exceptions=True)

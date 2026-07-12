@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import re
-import subprocess
 import time
 
 import aiohttp
@@ -101,7 +100,7 @@ class SysInfoSync:
                 "netSent":   {"stringValue": _fmt_bytes(net.bytes_sent)},
                 "netRecv":   {"stringValue": _fmt_bytes(net.bytes_recv)},
                 "processes": {"integerValue": len(psutil.pids())},
-                "fetch":     {"stringValue": self._get_fastfetch()},
+                "fetch":     {"stringValue": await self._get_fastfetch()},
             }
         }
 
@@ -111,14 +110,16 @@ class SysInfoSync:
                 log.debug("Firestore PATCH %d: %s", resp.status, body[:200])
 
     @staticmethod
-    def _get_fastfetch() -> str:
+    async def _get_fastfetch() -> str:
         """Run fastfetch --pipe --logo none, strip ANSI, return first 15 lines."""
         try:
-            result = subprocess.run(
-                ["fastfetch", "--pipe", "--logo", "none"],
-                capture_output=True, text=True, timeout=5,
+            proc = await asyncio.create_subprocess_exec(
+                "fastfetch", "--pipe", "--logo", "none",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
             )
-            clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]|\[[0-9]+[A-Z]", "", result.stdout)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]|\[[0-9]+[A-Z]", "", stdout.decode())
             lines = [l for l in clean.strip().splitlines() if l.strip()]
             return "\n".join(lines[:15])
         except Exception:

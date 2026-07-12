@@ -1,50 +1,75 @@
-import subprocess
-from discord.ext import commands
+import asyncio
+import logging
 import re
+from discord.ext import commands
 import psutil
 import aiohttp
+
+log = logging.getLogger(__name__)
+
 
 class SysInfo(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def strip_ansi(self, text):
+    @staticmethod
+    def _strip_ansi(text: str) -> str:
         return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]|\[[0-9]+[A-Z]', '', text)
-    
-    #this command lists all the sysinfo commands, not an actualy sysinfo command##
+
+    @staticmethod
+    async def _run_command(*args: str, timeout: float = 8) -> str:
+        """Run a shell command asynchronously, return stdout or '' on failure."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            return stdout.decode().strip()
+        except Exception:
+            log.debug("Command failed: %s", args, exc_info=True)
+            return ""
+
+    # ── commands ────────────────────────────────────────────────────────
+
     @commands.command()
     async def sysinfo(self, ctx):
-        sys_commands = [f'!{cmd.name}' for cmd in self.get_commands()]
-        await ctx.reply('\n'.join(sys_commands))
-    ######################################################################
+        """List available sysinfo commands."""
+        cmds = [f'!{cmd.name}' for cmd in self.get_commands()]
+        await ctx.reply('\n'.join(cmds))
 
-    
-
-    async def fetch(self, ctx):
-        result = subprocess.run(['fastfetch', '--pipe', '--logo', 'none'], capture_output=True, text=True)
-        clean = self.strip_ansi(result.stdout)
+    @commands.command(name="fetch")
+    async def fetch_cmd(self, ctx):
+        """Show system info via fastfetch."""
+        out = await self._run_command("fastfetch", "--pipe", "--logo", "none")
+        if not out:
+            return await ctx.reply("fastfetch not available")
+        clean = self._strip_ansi(out)
         await ctx.reply(f'```\n{clean}\n```')
 
     @commands.command()
     async def uptime(self, ctx):
-        result = subprocess.run(['uptime', '-p'], capture_output=True, text=True)
-        await ctx.reply(f'⏱️ {result.stdout.strip()}')
+        out = await self._run_command("uptime", "-p")
+        await ctx.reply(f'⏱️ {out}' if out else "uptime not available")
 
     @commands.command()
     async def temps(self, ctx):
-        result = subprocess.run(['sensors'], capture_output=True, text=True)
-        await ctx.reply(f'```\n{result.stdout}\n```')
+        out = await self._run_command("sensors")
+        await ctx.reply(f'```\n{out}\n```' if out else "sensors not available")
 
     @commands.command()
     async def gpu(self, ctx):
-        result = subprocess.run(['envycontrol', '--query'], capture_output=True, text=True)
-        await ctx.reply(f'I am on {result.stdout.strip()} mode esef!')
+        out = await self._run_command("envycontrol", "--query")
+        await ctx.reply(f'I am on {out} mode esef!' if out else "envycontrol not available")
 
     @commands.command()
     async def top(self, ctx):
-        result = subprocess.run(['ps', 'aux', '--sort=-%cpu'], capture_output=True, text=True)
-        lines = result.stdout.splitlines()
-        top5 = '\n'.join(lines[:6])  # header + 5 processes
+        out = await self._run_command("ps", "aux", "--sort=-%cpu")
+        if not out:
+            return await ctx.reply("ps not available")
+        lines = out.splitlines()
+        top5 = '\n'.join(lines[:6])
         await ctx.reply(f'```\n{top5}\n```')
 
     @commands.command()
@@ -72,12 +97,12 @@ class SysInfo(commands.Cog):
         battery = psutil.sensors_battery()
         if battery:
             await ctx.reply(f'Battery: {battery.percent}% {"Charging" if battery.power_plugged else "Not Charging"}')
-        
+
     @commands.command()
     async def processes(self, ctx):
         processes = psutil.pids()
-        await ctx.reply(f'Processes: {len(processes)} running processes ')
-    
+        await ctx.reply(f'Processes: {len(processes)} running processes')
+
     @commands.command()
     async def stats(self, ctx):
         cpu = psutil.cpu_percent(interval=1)
@@ -85,11 +110,7 @@ class SysInfo(commands.Cog):
         disk = psutil.disk_usage('/').percent
         reply = f'CPU: {cpu}% | RAM: {ram}% | Disk: {disk}%'
         await ctx.reply(reply)
-    
-    #this command fetches the current player count for Strinova from the Steam API
-    #it's a game i play and want to show off to my friends, not an actual sysinfo command##
-    #i know this is a bit of a weird place for it but i dont want to make a whole new cog just for one command
-    #holy shit vscode autocomplete knew exactly what i was gonna say wtf;?
+
     @commands.command()
     async def strinova(self, ctx):
         async with aiohttp.ClientSession() as session:
