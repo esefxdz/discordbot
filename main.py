@@ -71,6 +71,7 @@ async def main():
         await bot.load_extension('blue_archive.gacha')
         await bot.load_extension('blue_archive.inventory')
         await bot.load_extension('firebase_website')
+        await bot.load_extension('cogs.calendar')
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))
