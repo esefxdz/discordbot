@@ -19,7 +19,7 @@ from .data import (
     get_rates_for_banner,
 )
 from .gacha_renderer import render_pull
-from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES, GACHA_ANIM_PATH
+from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES, GACHA_ANIM_PATH, GACHA_ANIM_DURATION
 
 log = logging.getLogger(__name__)
 
@@ -258,8 +258,9 @@ class BlueArchiveGacha(commands.Cog):
                 banner_name = f"{gtype} — {rateups}"
                 rates = get_rates_for_banner(banner)
 
-        # "Opening envelope" teaser — send animation GIF
+        # "Opening envelope" teaser — send animation GIF (plays once, auto-deleted by timer)
         teaser = await ctx.reply(file=discord.File(str(GACHA_ANIM_PATH)))
+        anim_start = asyncio.get_running_loop().time()
 
         # Build the banner-specific character pool
         if banner_id and banner_id != "regular" and banner:
@@ -311,13 +312,19 @@ class BlueArchiveGacha(commands.Cog):
             await ctx.reply(f"Render failed: {e}")
             return
 
-        # Send image with spark+eligma caption
+        # Wait for the animation to finish playing, then replace with result
+        elapsed = asyncio.get_running_loop().time() - anim_start
+        remaining = GACHA_ANIM_DURATION - elapsed
+        if remaining > 0:
+            await asyncio.sleep(remaining)
+
+        try:
+            await teaser.delete()
+        except (discord.NotFound, discord.Forbidden):
+            pass
+
         try:
             file = discord.File(img_bytes, filename="gacha_result.png")
-            try:
-                await teaser.delete()
-            except (discord.NotFound, discord.Forbidden):
-                pass
             await ctx.reply(
                 f"Recruitment Points: {spark}/{SPARK_TARGET}{dupe_msg}",
                 file=file,

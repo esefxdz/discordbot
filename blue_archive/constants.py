@@ -9,6 +9,7 @@ BANNER_FILE = Path("data/ba_banner_state.json")
 ASSETS_DIR = Path(__file__).parent / "assets"
 BG_PATH = ASSETS_DIR / "gacha_bg.png"
 GACHA_ANIM_PATH = ASSETS_DIR / "Arona_Blue_Gacha_Animation.gif"
+GACHA_ANIM_DURATION = 19.5  # total seconds — 195 frames × 100 ms
 
 # ── APIs ────────────────────────────────────────────────────────────────────
 BANNER_API = "https://api.ennead.cc/buruaka/banner"
