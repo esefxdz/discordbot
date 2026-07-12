@@ -58,11 +58,7 @@ def add_pull(user_id: int, student_id: int, rarity: int) -> int:
         )
         row = cur.fetchone()
         if row:
-            # Duplicate — increment and earn eligma
-            conn.execute(
-                "UPDATE inventory SET count = count + 1 WHERE user_id = ? AND student_id = ?",
-                (user_id, student_id),
-            )
+            # Duplicate — convert to eligma only, keep count at 1
             eligma = ELIGMA_YIELD.get(rarity, 0)
             _add_eligma(conn, user_id, eligma)
             return eligma
