@@ -48,7 +48,16 @@ COUNTRY_TZ: dict[str, float] = {
 # fmt: on
 
 
-def tz_choices() -> list:
-    """Return app_commands.Choice list for the country dropdown."""
+async def country_autocomplete(
+    _interaction,
+    current: str,
+) -> list:
+    """Return matching countries for slash-command autocomplete."""
     from discord import app_commands
-    return [app_commands.Choice(name=c, value=c) for c in sorted(COUNTRY_TZ)]
+    current = current.lower()
+    matches = [
+        app_commands.Choice(name=c, value=c)
+        for c in sorted(COUNTRY_TZ)
+        if current in c.lower()
+    ]
+    return matches[:25]  # Discord limits to 25 suggestions

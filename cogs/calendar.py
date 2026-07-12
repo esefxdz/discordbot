@@ -19,7 +19,7 @@ FIRESTORE_CALENDAR = (
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
-from .calendar_data import COUNTRY_TZ, tz_choices
+from .calendar_data import COUNTRY_TZ, country_autocomplete
 
 
 class Calendar(commands.Cog):
@@ -43,7 +43,7 @@ class Calendar(commands.Cog):
         title="Event title",
         description="Extra notes (optional)",
     )
-    @app_commands.choices(country=tz_choices())
+    @app_commands.autocomplete(country=country_autocomplete)
     async def book_cmd(
         self,
         interaction: discord.Interaction,
