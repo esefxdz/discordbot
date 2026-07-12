@@ -6,7 +6,6 @@ from datetime import datetime, timezone, timedelta
 
 import aiohttp
 import discord
-from discord import app_commands
 from discord.ext import commands
 
 from .calendar_data import COUNTRY_TZ
@@ -20,11 +19,6 @@ FIRESTORE_CALENDAR = (
 
 DATE_RE = re.compile(r"^\d{2}-\d{2}-\d{4}$")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
-
-# Default timezone: South Africa (UTC+2)
-DEFAULT_COUNTRY = "South Africa"
-DEFAULT_TITLE = "Demo Review"
-
 
 def _find_offset(country: str) -> float | None:
     """Look up a country's UTC offset. Case-insensitive fuzzy match."""
@@ -141,23 +135,31 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
                     )
 
 
+class BookButton(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+
+    @discord.ui.button(label="Book an Event", style=discord.ButtonStyle.primary, emoji="📅")
+    async def open_modal(self, interaction: discord.Interaction, _button):
+        await interaction.response.send_modal(BookModal())
+
+
 class Calendar(commands.Cog):
     """Book events via a popup form."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="book", description="Open a form to add a calendar event")
-    async def book_cmd(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(BookModal())
+    @commands.command(name="book")
+    async def book_cmd(self, ctx: commands.Context) -> None:
+        """Send a button that opens the booking form."""
+        await ctx.reply("Click below to book an event:", view=BookButton())
 
-    @app_commands.command(name="unbook", description="Remove an event")
-    @app_commands.describe(date="Date (DD-MM-YYYY)", title="Exact title to remove")
-    async def unbook_cmd(self, interaction: discord.Interaction, date: str, title: str) -> None:
-        await interaction.response.defer(ephemeral=True)
-
+    @commands.command(name="unbook")
+    async def unbook_cmd(self, ctx: commands.Context, date: str = "", *, title: str = "") -> None:
+        """Remove an event. Usage: !unbook DD-MM-YYYY Title"""
         if not DATE_RE.match(date) or not title.strip():
-            return await interaction.followup.send("Usage: /unbook date:20-07-2026 title:Demo Review")
+            return await ctx.reply("Usage: `!unbook 20-07-2026 Demo Review`")
 
         day, month, year = date.split("-")
         iso_date = f"{year}-{month}-{day}"
@@ -166,7 +168,7 @@ class Calendar(commands.Cog):
         async with aiohttp.ClientSession() as session:
             async with session.get(FIRESTORE_CALENDAR) as resp:
                 if resp.status != 200:
-                    return await interaction.followup.send("Could not fetch events.")
+                    return await ctx.reply("Could not fetch events.")
                 data = await resp.json()
 
             for doc in data.get("documents", []):
@@ -181,9 +183,9 @@ class Calendar(commands.Cog):
                             break
 
         if deleted:
-            await interaction.followup.send(f"Removed **{title}** from {date}.")
+            await ctx.reply(f"Removed **{title}** from {date}.")
         else:
-            await interaction.followup.send(f"No event **{title}** found on {date}.")
+            await ctx.reply(f"No event **{title}** found on {date}.")
 
 
 async def setup(bot: commands.Bot) -> None:
