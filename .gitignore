@@ -15,5 +15,4 @@ icy_metadata_radios.md
 __pycache__/
 ssh_update.py
 ssh_*.py
-blue_archive/assets/
 blue_archive/ba_students.json
