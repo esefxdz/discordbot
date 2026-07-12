@@ -76,9 +76,9 @@ class IcyMetadataPoller:
             status_text = status_line.decode("utf-8", errors="replace").strip()
             log.info("ICY %s → %s", self._url, status_text)
 
-            # Follow redirect (301/302)
+            # Follow redirect (301/302/303/307/308)
             redirect_count = 0
-            while "30" in status_text.split(" ")[:2] and redirect_count < 5:
+            while any(code in status_text.split(" ") for code in ("301", "302", "303", "307", "308")) and redirect_count < 5:
                 headers, _ = await self._read_headers(reader)
                 location = headers.get("location", "")
                 writer.close()
