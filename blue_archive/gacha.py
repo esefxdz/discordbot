@@ -19,7 +19,7 @@ from .data import (
     get_rates_for_banner,
 )
 from .gacha_renderer import render_pull
-from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES, GACHA_ANIM_PATH
+from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES, GACHA_ANIM_PATH, GACHA_ANIM_DURATION
 
 log = logging.getLogger(__name__)
 
@@ -261,8 +261,11 @@ class BlueArchiveGacha(commands.Cog):
         # "Opening envelope" teaser — animation GIF, or text fallback
         if GACHA_ANIM_PATH.exists():
             teaser = await ctx.reply(file=discord.File(str(GACHA_ANIM_PATH)))
+            anim_start = asyncio.get_running_loop().time()
+            is_gif = True
         else:
             teaser = await ctx.reply("Opening recruitment envelope" + ("s..." if count > 1 else "..."))
+            is_gif = False
 
         # Build the banner-specific character pool
         if banner_id and banner_id != "regular" and banner:
@@ -313,6 +316,13 @@ class BlueArchiveGacha(commands.Cog):
                 pass
             await ctx.reply(f"Render failed: {e}")
             return
+
+        # If we showed the GIF, wait for it to finish playing before replacing
+        if is_gif:
+            elapsed = asyncio.get_running_loop().time() - anim_start
+            remaining = GACHA_ANIM_DURATION - elapsed
+            if remaining > 0:
+                await asyncio.sleep(remaining)
 
         # Send image with spark+eligma caption
         try:
