@@ -49,6 +49,11 @@ async def on_ready():
     asyncio.create_task(forwarder.start())
     asyncio.create_task(twitter.start())
     asyncio.create_task(twitter_mao.start())
+    # Clear stale global slash commands
+    try:
+        await bot.tree.sync()
+    except Exception:
+        pass
 
 async def main():
     async with bot:

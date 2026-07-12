@@ -53,7 +53,7 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
         placeholder="14:30",
         min_length=5, max_length=5,
     )
-    title = discord.ui.TextInput(
+    event_title = discord.ui.TextInput(
         label="Title",
         placeholder="Demo Review",
         default="Demo Review",
@@ -74,7 +74,7 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         date = self.date.value.strip()
         time_str = self.time.value.strip()
-        title = self.title.value.strip()
+        title = self.event_title.value.strip()
         country = self.country.value.strip()
         description = self.description.value.strip()
 
