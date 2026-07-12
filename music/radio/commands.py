@@ -1,3 +1,4 @@
+import asyncio
 import wavelink
 import discord
 import logging
@@ -7,6 +8,7 @@ from ..shared.constants import (
     LOOP_OFF, MODE_MUSIC, MODE_RADIO,
 )
 from .views import _CategoryView
+from .icy import IcyMetadataPoller
 
 log = logging.getLogger(__name__)
 
@@ -154,9 +156,42 @@ class RadioCommands:
             embed.set_footer(text="yuuka radio · use !stop to disconnect")
             await interaction.followup.send(embed=embed)
 
+            # Spawn ICY metadata poller if this station supports it
+            if station["url"] in self._icy_urls:
+                self._cancel_icy_poller(guild.id)
+                poller = IcyMetadataPoller(
+                    station["url"],
+                    on_title=lambda title: self._send_icy_now_playing(
+                        guild.id, station["name"], title
+                    ),
+                )
+                self._icy_tasks[guild.id] = asyncio.create_task(poller.run())
+
+    # ── ICY now-playing embed ─────────────────────────────────────────────────
+    async def _send_icy_now_playing(self, guild_id: int, station_name: str, title: str) -> None:
+        """Post a compact 'Now Playing' embed when an ICY station updates its track."""
+        channel_id = self._radio_channels.get(guild_id)
+        if channel_id is None:
+            return
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return
+        channel = guild.get_channel_or_thread(channel_id)
+        if channel is None:
+            return
+        try:
+            embed = discord.Embed(
+                description=f"🎵 **{title}**\n-# now on {station_name}",
+                color=C_RADIO,
+            )
+            await channel.send(embed=embed)
+        except Exception:
+            log.debug(f"Failed to send ICY now-playing in guild {guild_id}", exc_info=True)
+
     # ── radio drop notification ───────────────────────────────────────────────
     async def _notify_radio_drop(self, guild_id: int):
         """Send a notification to the channel where radio was started."""
+        self._cancel_icy_poller(guild_id)
         channel_id = self._radio_channels.pop(guild_id, None)
         if channel_id is None:
             return

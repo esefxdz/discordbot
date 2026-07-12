@@ -166,6 +166,7 @@ class PlayerCommands:
         self._radio_channels.pop(ctx.guild.id, None)
         self._music_channels.pop(ctx.guild.id, None)
         self._locks.pop(ctx.guild.id, None)
+        self._cancel_icy_poller(ctx.guild.id)
 
         msg = "⏹️ Stopped radio and disconnected." if current_mode == MODE_RADIO else "⏹️ Stopped and disconnected."
         await ctx.reply(embed=discord.Embed(description=msg, color=C_OK))

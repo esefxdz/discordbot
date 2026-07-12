@@ -80,6 +80,7 @@ class MusicEvents:
             self._locks.pop(guild_id, None)
             self._radio_channels.pop(guild_id, None)
             self._music_channels.pop(guild_id, None)
+            self._cancel_icy_poller(guild_id)
             await self._clear_channel_status(guild_id)
 
     # ── track end → advance queue ─────────────────────────────────────────────

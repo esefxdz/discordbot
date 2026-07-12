@@ -36,6 +36,7 @@ class Music(PlayerCommands, QueueCommands, MusicEvents, RadioCommands, RadioEven
         self._radio_channels: dict[int, int]           = {}  # guild_id → text channel id (for drop notifications)
         self._music_channels: dict[int, int]           = {}  # guild_id → text channel id (for now-playing announcements)
         self._locks:          dict[int, asyncio.Lock]  = {}
+        self._icy_tasks:      dict[int, asyncio.Task]  = {}  # guild_id → ICY metadata poller task
 
         # Load radio stations
         stations_path = Path(__file__).parent / "radio_stations.json"
@@ -46,6 +47,13 @@ class Music(PlayerCommands, QueueCommands, MusicEvents, RadioCommands, RadioEven
             f"{sum(len(v) for v in self._radio_stations.values())} stations "
             f"in {len(self._radio_stations)} categories"
         )
+
+        # Load ICY-supported station URLs (for live track metadata)
+        icy_path = Path(__file__).parent / "../icy_supported.json"
+        with open(icy_path, "r", encoding="utf-8") as f:
+            icy_list: list[list[str]] = json.load(f)
+        self._icy_urls: set[str] = {item[1] for item in icy_list}
+        log.info(f"Loaded {len(self._icy_urls)} ICY-capable radio URLs")
 
     # ── shared helpers (used by all mixins via self) ──────────────────────────
     def state(self, guild_id: int) -> GuildState:
@@ -71,6 +79,13 @@ class Music(PlayerCommands, QueueCommands, MusicEvents, RadioCommands, RadioEven
         if st.current is None or event_track is None:
             return False
         return event_track.identifier == st.current.identifier
+
+    def _cancel_icy_poller(self, guild_id: int) -> None:
+        """Cancel and remove the ICY metadata poller for a guild, if any."""
+        task = self._icy_tasks.pop(guild_id, None)
+        if task is None:
+            return
+        task.cancel()
 
     # ── !music ────────────────────────────────────────────────────────────────
     @commands.command()
