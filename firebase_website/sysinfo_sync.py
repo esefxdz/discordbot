@@ -2,6 +2,8 @@
 ######################################################################
 import asyncio
 import logging
+import re
+import subprocess
 import time
 
 import aiohttp
@@ -12,11 +14,21 @@ from .config import DOC_SYSINFO, SYSINFO_INTERVAL
 log = logging.getLogger(__name__)
 
 
+def _fmt_bytes(b: int) -> str:
+    """Format a byte count as a human-readable string (e.g. '1.2 GB')."""
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if abs(b) < 1024:
+            return f"{b:.1f} {unit}"
+        b /= 1024
+    return f"{b:.1f} PB"
+
+
 class SysInfoSync:
     """Background task that collects system stats and pushes them to Firestore."""
 
     def __init__(self) -> None:
         self._task: asyncio.Task | None = None
+        self._tick = 0
 
     # ── public API ──────────────────────────────────────────────────────────
 
@@ -65,6 +77,10 @@ class SysInfoSync:
         else:
             uptime_str = f"{hours}h {minutes}m"
 
+        load1, load5, load15 = psutil.getloadavg()
+        net = psutil.net_io_counters()
+        swap = psutil.swap_memory()
+
         payload = {
             "fields": {
                 "online":    {"booleanValue": True},
@@ -75,7 +91,17 @@ class SysInfoSync:
                 "disk":      {"doubleValue": round(disk.percent, 1)},
                 "diskUsed":  {"stringValue": f"{disk.used // (1024 ** 3)}GB"},
                 "diskTotal": {"stringValue": f"{disk.total // (1024 ** 3)}GB"},
+                "swap":      {"doubleValue": round(swap.percent, 1)},
+                "swapUsed":  {"stringValue": f"{swap.used // (1024 ** 2)}MB"},
+                "swapTotal": {"stringValue": f"{swap.total // (1024 ** 2)}MB"},
                 "uptime":    {"stringValue": uptime_str},
+                "load1":     {"doubleValue": round(load1, 1)},
+                "load5":     {"doubleValue": round(load5, 1)},
+                "load15":    {"doubleValue": round(load15, 1)},
+                "netSent":   {"stringValue": _fmt_bytes(net.bytes_sent)},
+                "netRecv":   {"stringValue": _fmt_bytes(net.bytes_recv)},
+                "processes": {"integerValue": len(psutil.pids())},
+                "fetch":     {"stringValue": self._get_fastfetch()},
             }
         }
 
@@ -83,3 +109,17 @@ class SysInfoSync:
             if resp.status not in (200, 201):
                 body = await resp.text()
                 log.debug("Firestore PATCH %d: %s", resp.status, body[:200])
+
+    @staticmethod
+    def _get_fastfetch() -> str:
+        """Run fastfetch --pipe --logo none, strip ANSI, return first 15 lines."""
+        try:
+            result = subprocess.run(
+                ["fastfetch", "--pipe", "--logo", "none"],
+                capture_output=True, text=True, timeout=5,
+            )
+            clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]|\[[0-9]+[A-Z]", "", result.stdout)
+            lines = [l for l in clean.strip().splitlines() if l.strip()]
+            return "\n".join(lines[:15])
+        except Exception:
+            return ""
