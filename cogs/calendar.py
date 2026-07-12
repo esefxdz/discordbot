@@ -1,8 +1,8 @@
-"""Calendar cog — book events via Discord slash commands, displayed on the website."""
+"""Calendar cog — book events via Discord slash commands; website auto-converts timezones."""
 ######################################################################
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import aiohttp
 import discord
@@ -19,6 +19,8 @@ FIRESTORE_CALENDAR = (
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
+from .calendar_data import COUNTRY_TZ, tz_choices
+
 
 class Calendar(commands.Cog):
     """Book and manage calendar events from Discord."""
@@ -27,55 +29,53 @@ class Calendar(commands.Cog):
         self.bot = bot
 
     async def cog_load(self) -> None:
-        """Sync slash commands when the cog loads."""
         try:
             await self.bot.tree.sync()
             log.info("Calendar slash commands synced")
         except Exception:
             log.warning("Failed to sync slash commands", exc_info=True)
 
-    # ── /book ────────────────────────────────────────────────────────────
-
     @app_commands.command(name="book", description="Add an event to the calendar")
     @app_commands.describe(
-        date="Date in YYYY-MM-DD format (e.g. 2026-07-20)",
-        time="Time in HH:MM 24-hour format (optional, e.g. 14:30)",
+        date="Date: YYYY-MM-DD (e.g. 2026-07-20)",
+        time="Time: HH:MM 24-hour format (e.g. 14:30)",
+        country="What country's time is this? (default: Turkey)",
         title="Event title",
         description="Extra notes (optional)",
     )
+    @app_commands.choices(country=tz_choices())
     async def book_cmd(
         self,
         interaction: discord.Interaction,
         date: str,
+        time: str,
         title: str,
-        time: str = "",
+        country: str = "Turkey",
         description: str = "",
     ) -> None:
-        """Slash command: /book <date> <title> [time] [description]"""
         await interaction.response.defer()
 
-        if not DATE_RE.match(date):
-            return await interaction.followup.send(
-                "❌ Invalid date. Use `YYYY-MM-DD`, e.g. `2026-07-20`."
-            )
+        if not DATE_RE.match(date) or not TIME_RE.match(time):
+            return await interaction.followup.send("❌ Format: `/book date:2026-07-20 time:14:30 country:Turkey title:Event`")
         try:
             datetime.strptime(date, "%Y-%m-%d")
+            datetime.strptime(time, "%H:%M")
         except ValueError:
-            return await interaction.followup.send("❌ That date doesn't exist.")
+            return await interaction.followup.send("❌ Invalid date or time.")
 
-        if time and not TIME_RE.match(time):
-            return await interaction.followup.send("❌ Time must be `HH:MM` (24-hour), e.g. `14:30`.")
-        if time:
-            try:
-                datetime.strptime(time, "%H:%M")
-            except ValueError:
-                return await interaction.followup.send("❌ Invalid time.")
+        offset = COUNTRY_TZ.get(country, 3)
+        tz = timezone(timedelta(hours=offset))
+        local_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
+        utc_ts = local_dt.astimezone(timezone.utc).isoformat()
 
         payload = {
             "fields": {
                 "title":       {"stringValue": title.strip()},
                 "date":        {"stringValue": date},
                 "time":        {"stringValue": time},
+                "country":     {"stringValue": country},
+                "tzOffset":   {"doubleValue": offset},
+                "utc":         {"stringValue": utc_ts},
                 "description": {"stringValue": description.strip()},
                 "createdBy":   {"stringValue": str(interaction.user)},
             }
@@ -84,24 +84,19 @@ class Calendar(commands.Cog):
         async with aiohttp.ClientSession() as session:
             async with session.post(FIRESTORE_CALENDAR, json=payload) as resp:
                 if resp.status in (200, 201):
-                    when = date
-                    if time:
-                        when += f" at {time}"
                     desc = f" — {description}" if description else ""
                     await interaction.followup.send(
-                        f"📅 Booked **{when}**: **{title}**{desc}"
+                        f"📅 Booked **{date} at {time} ({country})**: **{title}**{desc}"
                     )
                 else:
                     body = await resp.text()
                     log.warning("Firestore POST failed %d: %s", resp.status, body[:200])
                     await interaction.followup.send("❌ Failed to save event.")
 
-    # ── /unbook ──────────────────────────────────────────────────────────
-
-    @app_commands.command(name="unbook", description="Remove an event from the calendar")
+    @app_commands.command(name="unbook", description="Remove an event")
     @app_commands.describe(
         date="Date of the event (YYYY-MM-DD)",
-        title="Exact title of the event to remove",
+        title="Exact title to remove",
     )
     async def unbook_cmd(
         self,
@@ -109,13 +104,10 @@ class Calendar(commands.Cog):
         date: str,
         title: str,
     ) -> None:
-        """Slash command: /unbook <date> <title>"""
         await interaction.response.defer()
 
         if not DATE_RE.match(date) or not title.strip():
-            return await interaction.followup.send(
-                "❌ Usage: `/unbook YYYY-MM-DD Title`"
-            )
+            return await interaction.followup.send("❌ Usage: `/unbook date:2026-07-20 title:Event`")
 
         deleted = False
         async with aiohttp.ClientSession() as session:
