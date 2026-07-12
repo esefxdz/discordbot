@@ -70,6 +70,7 @@ async def main():
         await bot.load_extension("rio.ssh_connection_rio")
         await bot.load_extension('blue_archive.gacha')
         await bot.load_extension('blue_archive.inventory')
+        await bot.load_extension('firebase_website')
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))
