@@ -86,11 +86,11 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
 
         if not DATE_RE.match(date):
             return await interaction.response.send_message(
-                "❌ Date must be `DD-MM-YYYY`, e.g. `20-07-2026`", ephemeral=True
+                "Date must be DD-MM-YYYY, e.g. 20-07-2026", ephemeral=True
             )
         if not TIME_RE.match(time_str):
             return await interaction.response.send_message(
-                "❌ Time must be `HH:MM` (24h), e.g. `14:30`", ephemeral=True
+                "Time must be HH:MM (24h), e.g. 14:30", ephemeral=True
             )
         try:
             day, month, year = date.split("-")
@@ -98,13 +98,13 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
             datetime.strptime(time_str, "%H:%M")
         except ValueError:
             return await interaction.response.send_message(
-                "❌ That date doesn't exist.", ephemeral=True
+                "That date doesn't exist.", ephemeral=True
             )
 
         offset = _find_offset(country)
         if offset is None:
             return await interaction.response.send_message(
-                f"❌ Unknown country. Try: Turkey, UK, US East, Japan, etc.\n"
+                f"Unknown country. Try: Turkey, UK, US East, Japan, etc.\n"
                 f"Type a country name from the list.",
                 ephemeral=True,
             )
@@ -133,11 +133,11 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
                 if resp.status in (200, 201):
                     desc = f" — {description}" if description else ""
                     await interaction.response.send_message(
-                        f"📅 Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
+                        f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
                     )
                 else:
                     await interaction.response.send_message(
-                        "❌ Failed to save. Try again.", ephemeral=True
+                        "Failed to save. Try again.", ephemeral=True
                     )
 
 
@@ -157,7 +157,7 @@ class Calendar(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not DATE_RE.match(date) or not title.strip():
-            return await interaction.followup.send("❌ Usage: `/unbook date:20-07-2026 title:Demo Review`")
+            return await interaction.followup.send("Usage: /unbook date:20-07-2026 title:Demo Review")
 
         day, month, year = date.split("-")
         iso_date = f"{year}-{month}-{day}"
@@ -166,7 +166,7 @@ class Calendar(commands.Cog):
         async with aiohttp.ClientSession() as session:
             async with session.get(FIRESTORE_CALENDAR) as resp:
                 if resp.status != 200:
-                    return await interaction.followup.send("❌ Could not fetch events.")
+                    return await interaction.followup.send("Could not fetch events.")
                 data = await resp.json()
 
             for doc in data.get("documents", []):
@@ -181,9 +181,9 @@ class Calendar(commands.Cog):
                             break
 
         if deleted:
-            await interaction.followup.send(f"🗑️ Removed **{title}** from {date}.")
+            await interaction.followup.send(f"Removed **{title}** from {date}.")
         else:
-            await interaction.followup.send(f"❌ No event **{title}** found on {date}.")
+            await interaction.followup.send(f"No event **{title}** found on {date}.")
 
 
 async def setup(bot: commands.Bot) -> None:
