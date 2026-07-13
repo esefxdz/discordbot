@@ -1,12 +1,12 @@
 """Calendar cog — modal-based booking, Firestore Admin SDK."""
 ######################################################################
 import logging
+import os
 import re
 from datetime import datetime, timezone, timedelta
 
 import discord
 from discord.ext import commands
-from google.cloud.firestore import AsyncClient
 
 from firebase_website import get_db
 from .calendar_data import COUNTRY_TZ
@@ -141,19 +141,30 @@ class BookButton(discord.ui.View):
 
 
 class Calendar(commands.Cog):
-    """Book events via a popup form."""
+    """Book events via a popup form — restricted to authorized users."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        raw = os.getenv("CALENDAR_USERS", "")
+        self._allowed: set[int] = {
+            int(uid.strip()) for uid in raw.split(",") if uid.strip()
+        }
+
+    def _check(self, user_id: int) -> bool:
+        return user_id in self._allowed
 
     @commands.command(name="book")
     async def book_cmd(self, ctx: commands.Context) -> None:
         """Send a button that opens the booking form."""
+        if not self._check(ctx.author.id):
+            return await ctx.reply("You are not a maomao member.", delete_after=5)
         await ctx.reply("Click below to book an event:", view=BookButton())
 
     @commands.command(name="unbook")
     async def unbook_cmd(self, ctx: commands.Context, date: str = "", *, title: str = "") -> None:
         """Remove an event. Usage: !unbook DD-MM-YYYY Title"""
+        if not self._check(ctx.author.id):
+            return await ctx.reply("You don't have access to the calendar.", delete_after=5)
         if not DATE_RE.match(date) or not title.strip():
             return await ctx.reply("Usage: `!unbook 20-07-2026 Demo Review`")
 
