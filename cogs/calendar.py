@@ -1,39 +1,36 @@
-"""Calendar cog — modal-based booking, country-aware timezones."""
+"""Calendar cog — modal-based booking, Firestore Admin SDK."""
 ######################################################################
 import logging
 import re
 from datetime import datetime, timezone, timedelta
 
-import aiohttp
 import discord
 from discord.ext import commands
+from google.cloud.firestore import AsyncClient
 
+from firebase_website import get_db
 from .calendar_data import COUNTRY_TZ
 
 log = logging.getLogger(__name__)
 
-FIRESTORE_CALENDAR = (
-    "https://firestore.googleapis.com/v1/projects/esef-514bf"
-    "/databases/(default)/documents/calendar_events"
-)
-
 DATE_RE = re.compile(r"^\d{2}-\d{2}-\d{4}$")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
+
+COLLECTION = "calendar_events"
+TR_TZ = timezone(timedelta(hours=3))
+
 
 def _find_offset(country: str) -> float | None:
     """Look up a country's UTC offset. Case-insensitive fuzzy match."""
     c = country.strip().lower()
     if not c:
         return None
-    # Exact match
     for name, offset in COUNTRY_TZ.items():
         if c == name.lower():
             return offset
-    # Starts with
     for name, offset in COUNTRY_TZ.items():
         if name.lower().startswith(c):
             return offset
-    # Substring anywhere
     for name, offset in COUNTRY_TZ.items():
         if c in name.lower():
             return offset
@@ -98,8 +95,7 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
         offset = _find_offset(country)
         if offset is None:
             return await interaction.response.send_message(
-                f"Unknown country. Try: Turkey, UK, US East, Japan, etc.\n"
-                f"Type a country name from the list.",
+                "Unknown country. Try: Turkey, UK, US East, Japan, etc.",
                 ephemeral=True,
             )
 
@@ -110,29 +106,29 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
         ).replace(tzinfo=tz)
         utc_ts = local_dt.astimezone(timezone.utc).isoformat()
 
-        payload = {
-            "fields": {
-                "title":       {"stringValue": title},
-                "date":        {"stringValue": f"{year}-{month}-{day}"},
-                "time":        {"stringValue": time_str},
-                "country":     {"stringValue": country},
-                "utc":         {"stringValue": utc_ts},
-                "description": {"stringValue": description},
-                "createdBy":   {"stringValue": str(interaction.user)},
-            }
+        event_data = {
+            "title":       title,
+            "date":        f"{year}-{month}-{day}",
+            "time":        time_str,
+            "country":     country,
+            "utc":         utc_ts,
+            "description": description,
+            "createdBy":   str(interaction.user),
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(FIRESTORE_CALENDAR, json=payload) as resp:
-                if resp.status in (200, 201):
-                    desc = f" — {description}" if description else ""
-                    await interaction.response.send_message(
-                        f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
-                    )
-                else:
-                    await interaction.response.send_message(
-                        "Failed to save. Try again.", ephemeral=True
-                    )
+        try:
+            db = get_db()
+            await db.collection(COLLECTION).add(event_data)
+        except Exception:
+            log.exception("Failed to add calendar event")
+            return await interaction.response.send_message(
+                "Failed to save. Try again.", ephemeral=True
+            )
+
+        desc = f" — {description}" if description else ""
+        await interaction.response.send_message(
+            f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
+        )
 
 
 class BookButton(discord.ui.View):
@@ -164,23 +160,22 @@ class Calendar(commands.Cog):
         day, month, year = date.split("-")
         iso_date = f"{year}-{month}-{day}"
 
-        deleted = False
-        async with aiohttp.ClientSession() as session:
-            async with session.get(FIRESTORE_CALENDAR) as resp:
-                if resp.status != 200:
-                    return await ctx.reply("Could not fetch events.")
-                data = await resp.json()
+        try:
+            db = get_db()
+            docs = (
+                await db.collection(COLLECTION)
+                .where("date", "==", iso_date)
+                .where("title", "==", title.strip())
+                .get()
+            )
+        except Exception:
+            log.exception("Failed to query calendar events")
+            return await ctx.reply("Could not fetch events.")
 
-            for doc in data.get("documents", []):
-                fields = doc.get("fields", {})
-                d = fields.get("date", {}).get("stringValue", "")
-                t = fields.get("title", {}).get("stringValue", "")
-                if d == iso_date and t.lower() == title.strip().lower():
-                    doc_name = doc["name"].split("/")[-1]
-                    async with session.delete(f"{FIRESTORE_CALENDAR}/{doc_name}") as dresp:
-                        if dresp.status == 200:
-                            deleted = True
-                            break
+        deleted = False
+        for doc in docs:
+            await doc.reference.delete()
+            deleted = True
 
         if deleted:
             await ctx.reply(f"Removed **{title}** from {date}.")
