@@ -7,8 +7,7 @@ import time
 
 import psutil
 
-from . import get_db
-from .config import SYSINFO_INTERVAL
+from .config import get_db, SYSINFO_INTERVAL
 
 log = logging.getLogger(__name__)
 
