@@ -127,8 +127,7 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
 
         desc = f" — {description}" if description else ""
         await interaction.response.send_message(
-            f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
-        )
+            f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}", delete_after=10) 
 
 
 class BookButton(discord.ui.View):
