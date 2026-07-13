@@ -134,7 +134,7 @@ class BookButton(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
 
-    @discord.ui.button(label="Book an Event", style=discord.ButtonStyle.primary, emoji="📅", delete_after= 120)
+    @discord.ui.button(label="Book an Event", style=discord.ButtonStyle.primary, emoji="📅")
     async def open_modal(self, interaction: discord.Interaction, _button):
         await interaction.response.send_modal(BookModal())
 
