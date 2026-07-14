@@ -19,6 +19,8 @@ TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 COLLECTION = "calendar_events"
 TR_TZ = timezone(timedelta(hours=3))
 
+WH_NAME = "koharu"
+
 
 def _find_offset(country: str) -> float | None:
     """Look up a country's UTC offset. Case-insensitive fuzzy match."""
@@ -126,8 +128,12 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
             )
 
         desc = f" — {description}" if description else ""
-        await interaction.response.send_message(
-            f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}", delete_after=10) 
+        msg = f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
+        await interaction.response.send_message(msg, ephemeral=True)
+
+        cog = interaction.client.get_cog("Calendar")
+        if cog:
+            await cog._send_via_webhook(interaction.channel, msg)
 
 
 class BookButton(discord.ui.View):
@@ -149,14 +155,84 @@ class Calendar(commands.Cog):
             int(uid.strip()) for uid in raw.split(",") if uid.strip()
         }
 
+        # --- webhook plumbing (same pattern as ai_roleplay) ---
+        self._webhooks: dict[int, discord.Webhook] = {}
+        self._wh_avatar_set: set[int] = set()
+
+        avatar_dir = os.path.dirname(os.path.dirname(__file__))
+        avatar_path = os.path.join(avatar_dir, "calendar_asset", "webhook_agent_calendar_pfp.jpg")
+        self._avatar_bytes: bytes | None = None
+        if os.path.exists(avatar_path):
+            with open(avatar_path, "rb") as f:
+                self._avatar_bytes = f.read()
+        else:
+            log.warning("Calendar webhook avatar not found at %s", avatar_path)
+
     def _check(self, user_id: int) -> bool:
         return user_id in self._allowed
+
+    # ------------------------------------------------------------------
+    # webhook helpers (mirrors ai_roleplay.get_webhook / send_as_char)
+    # ------------------------------------------------------------------
+
+    async def _get_webhook(self, channel: discord.TextChannel) -> discord.Webhook | None:
+        """Return (or create) the 'koharu' webhook for *channel*, with avatar."""
+        if channel.id in self._webhooks:
+            return self._webhooks[channel.id]
+
+        try:
+            whs = await channel.webhooks()
+            wh = next((w for w in whs if w.name == WH_NAME), None)
+            if not wh:
+                wh = await channel.create_webhook(name=WH_NAME, avatar=self._avatar_bytes)
+            self._webhooks[channel.id] = wh
+            self._wh_avatar_set.add(channel.id)
+            return wh
+        except discord.Forbidden:
+            return None
+
+    async def _send_via_webhook(self, channel: discord.TextChannel, content: str) -> bool:
+        """Send *content* through the koharu webhook. Returns True on success."""
+        wh = await self._get_webhook(channel)
+        if wh is None:
+            return False
+
+        for attempt in range(2):
+            try:
+                if channel.id not in self._wh_avatar_set and self._avatar_bytes:
+                    await wh.edit(avatar=self._avatar_bytes)
+                    self._wh_avatar_set.add(channel.id)
+                await wh.send(content=content, username=WH_NAME)
+                return True
+            except discord.NotFound:
+                # webhook deleted externally — purge and recreate once
+                self._webhooks.pop(channel.id, None)
+                self._wh_avatar_set.discard(channel.id)
+                wh = await self._get_webhook(channel)
+                if wh is None:
+                    return False
+        return False
+
+    # ------------------------------------------------------------------
+    # commands
+    # ------------------------------------------------------------------
 
     @commands.command(name="book")
     async def book_cmd(self, ctx: commands.Context) -> None:
         """Send a button that opens the booking form."""
         if not self._check(ctx.author.id):
             return await ctx.reply("You are not a maomao member.", delete_after=5)
+
+        wh = await self._get_webhook(ctx.channel)
+        if wh:
+            try:
+                await wh.send(content="Click below to book an event:", view=BookButton(), username=WH_NAME)
+                return
+            except discord.NotFound:
+                self._webhooks.pop(ctx.channel.id, None)
+                self._wh_avatar_set.discard(ctx.channel.id)
+
+        # fallback
         await ctx.reply("Click below to book an event:", view=BookButton())
 
     @commands.command(name="unbook")
@@ -188,9 +264,12 @@ class Calendar(commands.Cog):
             deleted = True
 
         if deleted:
-            await ctx.reply(f"Removed **{title}** from {date}.")
+            msg = f"Removed **{title}** from {date}."
         else:
-            await ctx.reply(f"No event **{title}** found on {date}.")
+            msg = f"No event **{title}** found on {date}."
+
+        if not await self._send_via_webhook(ctx.channel, msg):
+            await ctx.reply(msg)
 
 
 async def setup(bot: commands.Bot) -> None:
