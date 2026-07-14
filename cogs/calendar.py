@@ -127,7 +127,7 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
 
         desc = f" — {description}" if description else ""
         msg = f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
-        await interaction.response.send_message(msg, ephemeral=True, delete_after=10)
+        await interaction.response.send_message(msg, ephemeral=True)
 
         cog = interaction.client.get_cog("Calendar")
         if cog and cog._wh:
@@ -157,7 +157,7 @@ class Calendar(commands.Cog):
         self._wh: discord.Webhook | None = None
         if wh_url:
             try:
-                self._wh = discord.Webhook.from_url(wh_url, client=bot)
+                self._wh = discord.Webhook.from_url(wh_url)
             except Exception:
                 log.warning("Invalid CALENDAR_WEBHOOK_AGENT, webhook disabled")
 
