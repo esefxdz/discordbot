@@ -126,12 +126,8 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
             )
 
         desc = f" — {description}" if description else ""
-        msg = f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}"
-        await interaction.response.send_message(msg, ephemeral=True)
-
-        cog = interaction.client.get_cog("Calendar")
-        if cog and cog._wh:
-            await cog._wh.send(msg) 
+        await interaction.response.send_message(
+            f"Booked **{date} at {time_str} ({country})**: **{title}**{desc}", delete_after=10) 
 
 
 class BookButton(discord.ui.View):
@@ -153,14 +149,6 @@ class Calendar(commands.Cog):
             int(uid.strip()) for uid in raw.split(",") if uid.strip()
         }
 
-        wh_url = os.getenv("CALENDAR_WEBHOOK_AGENT", "")
-        self._wh: discord.Webhook | None = None
-        if wh_url:
-            try:
-                self._wh = discord.Webhook.from_url(wh_url)
-            except Exception:
-                log.warning("Invalid CALENDAR_WEBHOOK_AGENT, webhook disabled")
-
     def _check(self, user_id: int) -> bool:
         return user_id in self._allowed
 
@@ -169,10 +157,7 @@ class Calendar(commands.Cog):
         """Send a button that opens the booking form."""
         if not self._check(ctx.author.id):
             return await ctx.reply("You are not a maomao member.", delete_after=5)
-        if self._wh:
-            await self._wh.send("Click below to book an event:", view=BookButton())
-        else:
-            await ctx.reply("Click below to book an event:", view=BookButton())
+        await ctx.reply("Click below to book an event:", view=BookButton())
 
     @commands.command(name="unbook")
     async def unbook_cmd(self, ctx: commands.Context, date: str = "", *, title: str = "") -> None:
@@ -203,14 +188,9 @@ class Calendar(commands.Cog):
             deleted = True
 
         if deleted:
-            msg = f"Removed **{title}** from {date}."
+            await ctx.reply(f"Removed **{title}** from {date}.")
         else:
-            msg = f"No event **{title}** found on {date}."
-
-        if self._wh:
-            await self._wh.send(msg)
-        else:
-            await ctx.reply(msg)
+            await ctx.reply(f"No event **{title}** found on {date}.")
 
 
 async def setup(bot: commands.Bot) -> None:
