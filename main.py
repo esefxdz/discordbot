@@ -33,12 +33,10 @@ if os.getenv('DISCORD_CHANNEL_ID_SHITPOST') and os.getenv('TELEGRAM_GROUP_ID_SHI
     d_to_tg.add_route(int(os.getenv('DISCORD_CHANNEL_ID_SHITPOST')), int(os.getenv('TELEGRAM_GROUP_ID_SHITPOST')))
 
 twitter = TwitterRSSForwarder(
-    rss_url=os.getenv('TWITTER_RSS_URL'),
     webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK'),
 )
 
 twitter_mao = TwitterRSSForwarder(
-    rss_url=os.getenv('TWITTER_RSS_URL'),
     webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK_MAO'),
     guid_file='data/last_tweet_mao.txt',
 )
@@ -84,6 +82,8 @@ async def main():
             await forwarder.stop()
             twitter.stop()
             twitter_mao.stop()
+            await twitter.close()
+            await twitter_mao.close()
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('httpx').setLevel(logging.WARNING)
