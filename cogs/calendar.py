@@ -170,7 +170,7 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
             )
 
         desc = f" \u2014 {description}" if description else ""
-        msg = f"Booked **{date_display} at {time_str} ({country})**: **{title}**{desc}"
+        msg = f"Booked **{date_display} at {time_str} ({country})**: **{title}**{desc}\nCalendar: https://esefos.netlify.app/calendar"
         await interaction.response.send_message(msg, ephemeral=True)
 
         cog = interaction.client.get_cog("Calendar")
@@ -342,6 +342,11 @@ class Calendar(commands.Cog):
         if not self._check(ctx.author.id):
             return await ctx.reply("You don't have access to the calendar.", delete_after=5)
         await self._unbook_dropdown(ctx)
+
+    @commands.command(name="koharu")
+    async def koharu_cmd(self, ctx: commands.Context) -> None:
+        """shikei!"""
+        await self._send_text(ctx.channel, "shikei!")
 
     async def _unbook_dropdown(self, ctx: commands.Context) -> None:
         """Fetch future events and present a selection dropdown."""
