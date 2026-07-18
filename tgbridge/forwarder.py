@@ -51,9 +51,13 @@ class TelegramForwarder:
 
 
     async def _download_file(self, file_id):
-        tg_file = await self._app.bot.get_file(file_id)
+        tg_file = await asyncio.wait_for(
+            self._app.bot.get_file(file_id), timeout=30.0
+        )
         buf = io.BytesIO()
-        await tg_file.download_to_memory(buf)
+        await asyncio.wait_for(
+            tg_file.download_to_memory(buf), timeout=60.0
+        )
         buf.seek(0)
         filename = tg_file.file_path.split('/')[-1] if tg_file.file_path else 'file'
         return buf.read(), filename
@@ -128,6 +132,7 @@ class TelegramForwarder:
                 convert_to_gif = is_animation  # animations never have audio
 
                 if not is_animation and shutil.which('ffprobe'):
+                    tmp_path = None
                     try:
                         with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
                             tmp.write(file_data)
@@ -143,7 +148,6 @@ class TelegramForwarder:
                             stderr=asyncio.subprocess.PIPE
                         )
                         stdout, _ = await asyncio.wait_for(probe.communicate(), timeout=15.0)
-                        os.remove(tmp_path)
 
                         # ffprobe outputs "audio" if an audio stream is present
                         convert_to_gif = b'audio' not in stdout
@@ -152,6 +156,9 @@ class TelegramForwarder:
                     except Exception as e:
                         print(f"[GIF-HANDLER] ffprobe failed, defaulting to convert: {e}", flush=True)
                         convert_to_gif = True
+                    finally:
+                        if tmp_path and os.path.exists(tmp_path):
+                            os.remove(tmp_path)
 
                 if convert_to_gif:
                     # >>> FFMPEG GIF CONVERSION START >>>
