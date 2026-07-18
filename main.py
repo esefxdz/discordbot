@@ -8,7 +8,7 @@ import asyncio
 from tgbridge.forwarder import TelegramForwarder
 from tgbridge.discord_to_telegram import DiscordToTelegramForwarder
 
-from twitterbridge.rss import TwitterRSSForwarder
+# from twitterbridge.rss import TwitterRSSForwarder
 
 load_dotenv('credentials.env')
 
@@ -32,21 +32,21 @@ if os.getenv('DISCORD_CHANNEL_ID') and os.getenv('TELEGRAM_GROUP_ID'):
 if os.getenv('DISCORD_CHANNEL_ID_SHITPOST') and os.getenv('TELEGRAM_GROUP_ID_SHITPOST'):
     d_to_tg.add_route(int(os.getenv('DISCORD_CHANNEL_ID_SHITPOST')), int(os.getenv('TELEGRAM_GROUP_ID_SHITPOST')))
 
-twitter = TwitterRSSForwarder(
-    webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK'),
-)
+# twitter = TwitterRSSForwarder(
+#     webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK'),
+# )
 
-twitter_mao = TwitterRSSForwarder(
-    webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK_MAO'),
-    guid_file='data/last_tweet_mao.txt',
-)
+# twitter_mao = TwitterRSSForwarder(
+#     webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK_MAO'),
+#     guid_file='data/last_tweet_mao.txt',
+# )
 
 @bot.event
 async def on_ready():
     print(f'[+] {bot.user} is online!')
     asyncio.create_task(forwarder.start())
-    asyncio.create_task(twitter.start())
-    asyncio.create_task(twitter_mao.start())
+    # asyncio.create_task(twitter.start())
+    # asyncio.create_task(twitter_mao.start())
     # Clear stale global slash commands
     try:
         await bot.tree.sync()
@@ -69,7 +69,7 @@ async def main():
         await bot.load_extension('cogs.gitpull')
         await bot.load_extension('cogs.currency_converter')
         await bot.load_extension('ai.ai_roleplay')
-        await bot.load_extension('twitterbridge.leaks_cmd')
+        # await bot.load_extension('twitterbridge.leaks_cmd')
         await bot.load_extension("rio.ssh_connection_rio")
         await bot.load_extension('blue_archive.gacha')
         await bot.load_extension('blue_archive.inventory')
@@ -80,10 +80,10 @@ async def main():
             await bot.start(os.getenv('DISCORD_TOKEN'))
         finally:
             await forwarder.stop()
-            twitter.stop()
-            twitter_mao.stop()
-            await twitter.close()
-            await twitter_mao.close()
+            # twitter.stop()
+            # twitter_mao.stop()
+            # await twitter.close()
+            # await twitter_mao.close()
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('httpx').setLevel(logging.WARNING)

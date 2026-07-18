@@ -158,13 +158,27 @@ class TwitterRSSForwarder:
             logger.info('twitter rss first run — recorded guid: %s', self.last_guid)
             return
 
-        new_entries = []
-        for entry in entries:
-            guid = entry.get('id', '')
-            if guid == self.last_guid:
+        # Find the index of the last known GUID in the current feed.
+        last_idx = None
+        for i, entry in enumerate(entries):
+            if entry.get('id', '') == self.last_guid:
+                last_idx = i
                 break
-            new_entries.append(entry)
 
+        if last_idx is None:
+            # Stored GUID not in this feed — nitter returned a stale/partial
+            # snapshot.  Update to the newest GUID *without* posting, so we
+            # don't spam the channel with duplicates when the full feed returns.
+            logger.warning(
+                'stored guid %s not found in feed (%d entries) — '
+                'updating to %s without posting',
+                self.last_guid, len(entries), entries[0].get('id', '?'),
+            )
+            self.last_guid = entries[0].get('id', '')
+            self._save_last_guid()
+            return
+
+        new_entries = entries[:last_idx]  # everything newer than last known
         if not new_entries:
             return
 
