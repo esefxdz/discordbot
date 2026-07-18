@@ -105,60 +105,90 @@ class TelegramForwarder:
 
             # --- START OF ENHANCED GIF HANDLING BLOCK ---
             # Telegram may send a GIF as an `animation` (the normal case) *or*
-            # as a generic `document`/`video` with MIME type `video/mp4`.  We want to
-            # treat any of those as a potential GIF and try to convert it to a true
-            # GIF for Discord auto‑looping.
+            # as a muted `video` / `document` with a video MIME type.
+            # Videos with an audio track are real videos → sent as-is.
+            # Silent videos are treated as GIFs → converted for Discord auto-loop.
             elif getattr(message, "animation", None) or (
                 getattr(message, "document", None) and message.document.mime_type.startswith("video")
             ) or message.video:
-                # Identify the file source
                 if message.animation:
                     file_id = message.animation.file_id
+                    is_animation = True
                 elif message.video:
                     file_id = message.video.file_id
+                    is_animation = False
                 else:
                     file_id = message.document.file_id
-                
+                    is_animation = False
+
                 print(f"[GIF-HANDLER] Detected potential media (file_id={file_id})", flush=True)
                 file_data, filename = await self._download_file(file_id)
 
-                # Attempt conversion if it's a video/animation
-                # >>> FFMPEG GIF CONVERSION START >>>
-                try:
+                # Probe for audio track to decide: real video or GIF?
+                convert_to_gif = is_animation  # animations never have audio
 
-                    if not shutil.which('ffmpeg'):
-                        raise RuntimeError("ffmpeg binary not found in PATH")
+                if not is_animation and shutil.which('ffprobe'):
+                    try:
+                        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
+                            tmp.write(file_data)
+                            tmp_path = tmp.name
 
-                    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_mp4:
-                        temp_mp4.write(file_data)
-                        temp_mp4_path = temp_mp4.name
+                        probe = await asyncio.create_subprocess_exec(
+                            'ffprobe', '-v', 'error',
+                            '-select_streams', 'a',
+                            '-show_entries', 'stream=codec_type',
+                            '-of', 'csv=p=0',
+                            tmp_path,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        stdout, _ = await asyncio.wait_for(probe.communicate(), timeout=15.0)
+                        os.remove(tmp_path)
 
-                    temp_gif_path = temp_mp4_path + '.gif'
+                        # ffprobe outputs "audio" if an audio stream is present
+                        convert_to_gif = b'audio' not in stdout
+                        if not convert_to_gif:
+                            print("[GIF-HANDLER] Audio track detected — sending as video", flush=True)
+                    except Exception as e:
+                        print(f"[GIF-HANDLER] ffprobe failed, defaulting to convert: {e}", flush=True)
+                        convert_to_gif = True
 
-                    process = await asyncio.create_subprocess_exec(
-                        'ffmpeg', '-y', '-i', temp_mp4_path,
-                        '-filter_complex', 'fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
-                        '-loop', '0', temp_gif_path,
-                        stdout=asyncio.subprocess.DEVNULL,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    
-                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
+                if convert_to_gif:
+                    # >>> FFMPEG GIF CONVERSION START >>>
+                    try:
+                        if not shutil.which('ffmpeg'):
+                            raise RuntimeError("ffmpeg binary not found in PATH")
 
-                    if process.returncode == 0 and os.path.exists(temp_gif_path):
-                        gif_size = os.path.getsize(temp_gif_path)
-                        if gif_size < 10 * 1024 * 1024:
-                            with open(temp_gif_path, 'rb') as f:
-                                file_data = f.read()
-                            filename = filename.rsplit('.', 1)[0] + '.gif'
-                    else:
-                        print(f"[GIF-HANDLER] ffmpeg error: {stderr.decode()}", flush=True)
-                    
-                    if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
-                    if os.path.exists(temp_gif_path): os.remove(temp_gif_path)
-                except Exception as e:
-                    print(f'ffmpeg conversion skipped/failed: {e}', flush=True)
-                # <<< FFMPEG GIF CONVERSION END <<<
+                        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_mp4:
+                            temp_mp4.write(file_data)
+                            temp_mp4_path = temp_mp4.name
+
+                        temp_gif_path = temp_mp4_path + '.gif'
+
+                        process = await asyncio.create_subprocess_exec(
+                            'ffmpeg', '-y', '-i', temp_mp4_path,
+                            '-filter_complex', 'fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
+                            '-loop', '0', temp_gif_path,
+                            stdout=asyncio.subprocess.DEVNULL,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+
+                        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
+
+                        if process.returncode == 0 and os.path.exists(temp_gif_path):
+                            gif_size = os.path.getsize(temp_gif_path)
+                            if gif_size < 10 * 1024 * 1024:
+                                with open(temp_gif_path, 'rb') as f:
+                                    file_data = f.read()
+                                filename = filename.rsplit('.', 1)[0] + '.gif'
+                        else:
+                            print(f"[GIF-HANDLER] ffmpeg error: {stderr.decode()}", flush=True)
+
+                        if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
+                        if os.path.exists(temp_gif_path): os.remove(temp_gif_path)
+                    except Exception as e:
+                        print(f'ffmpeg conversion skipped/failed: {e}', flush=True)
+                    # <<< FFMPEG GIF CONVERSION END <<<
 
                 text = caption.strip()
                 await self._send_to_webhook(webhook_url, sender, text, file_data, filename)
