@@ -2,7 +2,69 @@
 ######################################################################
 Used by the calendar, /timestamp, and timestamp-friends cogs.
 """
+import re
+from datetime import datetime, timezone, timedelta
+
 ######################################################################
+
+# ---------------------------------------------------------------------------
+# AM/PM detection — used to avoid overriding explicit meridian indicators
+# ---------------------------------------------------------------------------
+_AMPM_RE = re.compile(
+    r"(?:\b|(?<=\d))(?:am|a\.m\.?|pm|p\.m\.?)\b", re.IGNORECASE
+)
+
+def has_ampm(text: str) -> bool:
+    """Return True if *text* contains an explicit am/pm indicator."""
+    return bool(_AMPM_RE.search(text))
+
+
+# ---------------------------------------------------------------------------
+# bare hour fallback — for when dateparser ignores bare "3" or "at 11"
+# ---------------------------------------------------------------------------
+_BARE_HOUR_RE = re.compile(
+    r"\b(\d{1,2})\b(?!\s*(?:am|a\.m\.?|pm|p\.m\.?|:))",
+    re.IGNORECASE,
+)
+
+def parse_bare_hours(text: str, offset: float) -> list[int]:
+    """Find bare hour numbers (1-24) in *text*, convert to UTC unix timestamps.
+
+    Bare hours without AM/PM default to PM.  If the resulting time is already
+    past today in the given UTC offset, it's pushed to tomorrow.
+    """
+    raw = _BARE_HOUR_RE.findall(text)
+    if not raw:
+        return []
+
+    now_local = datetime.now(timezone.utc).astimezone(
+        timezone(timedelta(hours=offset))
+    )
+    results: list[int] = []
+    seen: set[int] = set()
+
+    for hour_str in raw:
+        h = int(hour_str)
+        if h < 1 or h > 24:
+            continue
+        if 1 <= h <= 11 and not has_ampm(text):
+            h += 12
+        if h == 24:
+            h = 0
+        dt = now_local.replace(hour=h, minute=0, second=0, microsecond=0)
+        if dt <= now_local:
+            dt += timedelta(days=1)
+        unix_ts = int(dt.astimezone(timezone.utc).timestamp())
+        if unix_ts not in seen:
+            seen.add(unix_ts)
+            results.append(unix_ts)
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# country offset data
+# ---------------------------------------------------------------------------
 
 # fmt: off
 COUNTRY_TZ: dict[str, float] = {

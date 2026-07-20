@@ -11,12 +11,12 @@ Friend map: TIMESTAMP_FRIEND_{DISCORD_USER_ID}=Country  in credentials.env
 import logging
 import os
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import timezone, timedelta
 
 import discord
 from discord.ext import commands
 
-from .tz_data import find_offset
+from .tz_data import find_offset, has_ampm, parse_bare_hours
 
 log = logging.getLogger(__name__)
 
@@ -35,33 +35,17 @@ except ImportError:
     )
 
 # ---------------------------------------------------------------------------
-# trigger phrase & morning-indicator regex
+# trigger phrase
 # ---------------------------------------------------------------------------
 _TRIGGER_RE = re.compile(r"my time", re.IGNORECASE)
-
-# Morning indicators that prevent the PM default from kicking in.
-# (?:\b|(?<=\d)) handles "3 am" (space), "3am" (digit-prefixed), and
-# "a.m." at sentence start — \b alone fails when am/a.m. follows a digit.
-_MORNING_RE = re.compile(
-    r"(?:\b|(?<=\d))(?:am|a\.m|morning|dawn|sunrise|early\s*morning)\b",
-    re.IGNORECASE,
-)
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
 
-def _all_formats(unix_ts: int) -> list[tuple[str, str]]:
-    """Return every Discord timestamp format for *unix_ts*."""
-    return [
-        ("Short Time",       f"<t:{unix_ts}:t>"),
-        ("Long Time",        f"<t:{unix_ts}:T>"),
-        ("Short Date",       f"<t:{unix_ts}:d>"),
-        ("Long Date",        f"<t:{unix_ts}:D>"),
-        ("Short Date+Time",  f"<t:{unix_ts}:f>"),
-        ("Long Date+Time",   f"<t:{unix_ts}:F>"),
-        ("Relative",         f"<t:{unix_ts}:R>"),
-    ]
+def _tag(unix_ts: int) -> str:
+    """Return a single Discord Short Date+Time tag."""
+    return f"<t:{unix_ts}:f>"
 
 
 def _load_friend_map() -> dict[int, tuple[str, float]]:
@@ -89,18 +73,6 @@ def _load_friend_map() -> dict[int, tuple[str, float]]:
             continue
         friends[uid] = (country, offset)
     return friends
-
-
-def _apply_pm_default(
-    dt: datetime, matched_text: str,
-) -> datetime:
-    """If *matched_text* has no morning indicator and the hour is 1–11,
-    bump by 12 h to treat the bare number as PM."""
-    if _MORNING_RE.search(matched_text):
-        return dt
-    if 1 <= dt.hour <= 11:
-        return dt + timedelta(hours=12)
-    return dt
 
 
 # ==========================================
@@ -148,49 +120,41 @@ class TimestampFriends(commands.Cog):
         except Exception:
             log.debug("timestamp_friends: search_dates failed", exc_info=True)
             return  # quiet fail
-        if not raw_matches:
-            return  # quiet fail — nothing parseable
-
         country, offset = self.friends[message.author.id]
+
+        if not raw_matches:
+            # --- fallback: bare hour numbers dateparser missed ---
+            results = parse_bare_hours(cleaned, offset)
+            if results:
+                tags = [_tag(ts) for ts in results]
+                await message.reply("\n".join(tags), mention_author=False)
+            return
+
         tz = timezone(timedelta(hours=offset))
 
         # --- process each match ---
-        results: list[tuple[datetime, int]] = []  # (local_dt, unix_ts)
+        results: list[int] = []
         seen: set[int] = set()  # dedupe by unix ts
 
         for matched_text, dt_naive in raw_matches:
-            # PM default when no meridian given
-            dt_adjusted = _apply_pm_default(dt_naive, matched_text)
+            # bare times without AM/PM default to PM
+            if not has_ampm(matched_text) and 1 <= dt_naive.hour <= 11:
+                dt_naive = dt_naive + timedelta(hours=12)
 
             # attach friend's timezone, then convert to UTC
-            dt_aware = dt_adjusted.replace(tzinfo=tz)
+            dt_aware = dt_naive.replace(tzinfo=tz)
             unix_ts = int(dt_aware.astimezone(timezone.utc).timestamp())
 
             if unix_ts not in seen:
                 seen.add(unix_ts)
-                results.append((dt_adjusted, unix_ts))
+                results.append(unix_ts)
 
         if not results:
             return  # quiet fail
 
-        # --- build reply ---
-        lines: list[str] = []
-        if len(results) > 1:
-            lines.append(f"*{len(results)} times found*")
+        tags = [_tag(ts) for ts in results]
+        await message.reply("\n".join(tags), mention_author=False)
 
-        for local_dt, unix_ts in results:
-            if lines:
-                lines.append("")
-            lines.append(f"**{local_dt.strftime('%d %B at %H:%M')}**")
-            lines.append(f"Unix: `{unix_ts}`")
-            lines.append("")
-            for label, tag in _all_formats(unix_ts):
-                lines.append(f"`{tag}`　← {label}")
-
-        lines.append("")
-        lines.append("*Times display in each viewer's local timezone.*")
-
-        await message.reply("\n".join(lines), mention_author=False)
 
 
 # ==========================================
