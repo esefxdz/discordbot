@@ -20,20 +20,41 @@ def has_ampm(text: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# bare hour fallback — for when dateparser ignores bare "3" or "at 11"
+# bare hour handling — two regexes: one for normalize, one for fallback
 # ---------------------------------------------------------------------------
-_BARE_HOUR_RE = re.compile(
-    r"\b(\d{1,2})\b(?!\s*(?:am|a\.m\.?|pm|p\.m\.?|:))",
+
+# Matches a bare hour number (1-24) NOT preceded by colon (excludes minutes
+# in "3:00") and NOT followed by colon (excludes "3:00" hours).  Captures
+# an optional am/pm suffix separately.
+_HOUR_RE = re.compile(
+    r"(?<!:)\b(\d{1,2})(?!\d)(?!\s*:)(?:\s*(am|a\.m\.?|pm|p\.m\.?))?",
     re.IGNORECASE,
 )
 
-def parse_bare_hours(text: str, offset: float) -> list[int]:
-    """Find bare hour numbers (1-24) in *text*, convert to UTC unix timestamps.
+def normalize_bare_hours(text: str) -> str:
+    """Insert ``:00`` before optional am/pm so dateparser reads times correctly.
 
-    Bare hours without AM/PM default to PM.  If the resulting time is already
-    past today in the given UTC offset, it's pushed to tomorrow.
+    ``sunday at 6`` → ``sunday at 6:00``
+    ``sunday at 6 am`` → ``sunday at 6:00 am``
+    ``3pm`` → ``3:00 pm``
     """
-    raw = _BARE_HOUR_RE.findall(text)
+    def _repl(m: re.Match) -> str:
+        h = m.group(1)
+        mer = m.group(2)
+        if mer:
+            return f"{h}:00 {mer}"
+        return f"{h}:00"
+    return _HOUR_RE.sub(_repl, text)
+
+
+def parse_bare_hours(text: str, offset: float) -> list[int]:
+    """Find hour patterns in *text*, convert to UTC unix timestamps.
+
+    Handles bare hours (``3``, ``at 11``), ``3pm``, ``3 am``, ``14``, etc.
+    No-AM/PM hours 1-11 default to PM; if past, falls back to AM before
+    pushing to tomorrow.
+    """
+    raw: list[tuple[str, str | None]] = _HOUR_RE.findall(text)
     if not raw:
         return []
 
@@ -43,14 +64,31 @@ def parse_bare_hours(text: str, offset: float) -> list[int]:
     results: list[int] = []
     seen: set[int] = set()
 
-    for hour_str in raw:
+    for hour_str, meridian in raw:
         h = int(hour_str)
         if h < 1 or h > 24:
             continue
-        if 1 <= h <= 11 and not has_ampm(text):
-            h += 12
-        if h == 24:
+
+        # Determine AM/PM from meridian or default
+        if meridian:
+            is_pm = meridian.lower().startswith("p")
+            if is_pm and 1 <= h <= 11:
+                h += 12
+            elif not is_pm and h == 12:
+                h = 0
+        elif 1 <= h <= 11:
+            # No meridian — try PM first, fall back to AM if past
+            h_pm = h + 12
+            dt_pm = now_local.replace(hour=h_pm, minute=0, second=0, microsecond=0)
+            if dt_pm > now_local:
+                h = h_pm
+            else:
+                dt_am = now_local.replace(hour=h, minute=0, second=0, microsecond=0)
+                if dt_am <= now_local:
+                    pass  # both past, keep AM, push tomorrow below
+        elif h == 24:
             h = 0
+
         dt = now_local.replace(hour=h, minute=0, second=0, microsecond=0)
         if dt <= now_local:
             dt += timedelta(days=1)

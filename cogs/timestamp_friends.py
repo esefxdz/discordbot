@@ -16,7 +16,7 @@ from datetime import timezone, timedelta
 import discord
 from discord.ext import commands
 
-from .tz_data import find_offset, has_ampm, parse_bare_hours
+from .tz_data import find_offset, has_ampm, normalize_bare_hours, parse_bare_hours
 
 log = logging.getLogger(__name__)
 
@@ -103,9 +103,12 @@ class TimestampFriends(commands.Cog):
             return
 
         # --- strip the trigger phrase ---
-        cleaned = _TRIGGER_RE.sub(" ", message.content).strip()
-        if not cleaned:
+        original = _TRIGGER_RE.sub(" ", message.content).strip()
+        if not original:
             return  # message was literally just "my time"
+
+        # --- normalize bare hours so dateparser doesn't mistake them for dates ---
+        cleaned = normalize_bare_hours(original)
 
         # --- parse time expressions ---
         try:
@@ -123,8 +126,8 @@ class TimestampFriends(commands.Cog):
         country, offset = self.friends[message.author.id]
 
         if not raw_matches:
-            # --- fallback: bare hour numbers dateparser missed ---
-            results = parse_bare_hours(cleaned, offset)
+            # --- fallback: use original text (not normalized) ---
+            results = parse_bare_hours(original, offset)
             if results:
                 tags = [_tag(ts) for ts in results]
                 await message.reply("\n".join(tags), mention_author=False)
