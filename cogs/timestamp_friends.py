@@ -12,27 +12,12 @@ import logging
 import os
 import re
 from datetime import timezone, timedelta
-
 import discord
 from discord.ext import commands
-
 from .tz_data import find_offset, has_ampm, normalize_bare_hours, parse_bare_hours
-
 log = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# optional dependency
-# ---------------------------------------------------------------------------
-try:
-    import dateparser
-    from dateparser.search import search_dates as _search_dates
-    HAS_DATEPARSER = True
-except ImportError:
-    HAS_DATEPARSER = False
-    log.warning(
-        "timestamp_friends: dateparser not installed; "
-        "install with `pip install dateparser`"
-    )
+import dateparser
+from dateparser.search import search_dates as _search_dates
 
 # ---------------------------------------------------------------------------
 # trigger phrase
