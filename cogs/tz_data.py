@@ -1,4 +1,7 @@
-"""Country → UTC offset mapping for the calendar cog."""
+"""Shared timezone data — country → UTC offset, fuzzy lookup, autocomplete.
+######################################################################
+Used by the calendar, /timestamp, and timestamp-friends cogs.
+"""
 ######################################################################
 
 # fmt: off
@@ -11,7 +14,8 @@ COUNTRY_TZ: dict[str, float] = {
     "Spain":          2,      "Sweden":          2,
     "Norway":         2,      "Denmark":         2,
     "Switzerland":    2,      "Austria":         2,
-    "Czechia":        2,      "Greece":          3,
+    "Czechia":        2,      "Czech Republic":  2,
+    "Czech":          2,      "Greece":          3,
     "Finland":        3,      "Romania":         3,
     "Ukraine":        3,      "Portugal":        1,
     "Ireland":        1,      "Iceland":         0,
@@ -46,6 +50,23 @@ COUNTRY_TZ: dict[str, float] = {
     "Morocco":         1,
 }
 # fmt: on
+
+
+def find_offset(country: str) -> float | None:
+    """Look up a country's UTC offset. Case-insensitive fuzzy match."""
+    c = country.strip().lower()
+    if not c:
+        return None
+    for name, offset in COUNTRY_TZ.items():
+        if c == name.lower():
+            return offset
+    for name, offset in COUNTRY_TZ.items():
+        if name.lower().startswith(c):
+            return offset
+    for name, offset in COUNTRY_TZ.items():
+        if c in name.lower():
+            return offset
+    return None
 
 
 async def country_autocomplete(

@@ -10,6 +10,9 @@ it started as a simple music bot and became a massive mess of features i actuall
 - **media & music** — yt-dlp + ffmpeg based music playback. also has commands for random ffmpeg media conversions.
 - **sysinfo** — live monitoring of my laptop's cpu, ram, temps (lm-sensors), top processes, and fastfetch.
 - **utilities** — live currency conversion, steam stat tracking (strinova player counts).
+- **calendar** — firestore-backed event booking via modal. autoconverts local times to UTC using a country list, feeds a web calendar frontend.
+- **timestamp** — `/timestamp` modal that generates Discord `<t:unix:FORMAT>` tags. accepts day numbers or day names ("Sunday"), handles month rollover, outputs all 7 Discord time formats.
+- **timestamp (friends)** — passive message listener: when a whitelisted user says "my time" in chat, the bot parses the surrounding text for time expressions, auto-converts to their timezone, and replies with timestamp tags. no commands needed.
 - **junk** — dice, coinflip, aura meter, rank, gifs, copypastas.
 
 ## stack
@@ -30,3 +33,5 @@ run these to see the sub-commands:
 - `!gifs` — the gif list 
 - `!fun` — the junk commands
 - `!gacha help` — blue archive recruitment simulator (pick banners, pull with live rates)
+- `!book` / `!unbook` — calendar event booking (whitelisted users only)
+- `/timestamp` — Discord timestamp generator modal

@@ -10,7 +10,7 @@ import discord
 from discord.ext import commands
 
 from firebase_website import get_db
-from .calendar_data import COUNTRY_TZ
+from .tz_data import COUNTRY_TZ, find_offset
 
 log = logging.getLogger(__name__)
 
@@ -20,23 +20,6 @@ TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 COLLECTION = "calendar_events"
 TR_TZ = timezone(timedelta(hours=3))
 WH_NAME = "koharu"
-
-
-def _find_offset(country: str) -> float | None:
-    """Look up a country's UTC offset. Case-insensitive fuzzy match."""
-    c = country.strip().lower()
-    if not c:
-        return None
-    for name, offset in COUNTRY_TZ.items():
-        if c == name.lower():
-            return offset
-    for name, offset in COUNTRY_TZ.items():
-        if name.lower().startswith(c):
-            return offset
-    for name, offset in COUNTRY_TZ.items():
-        if c in name.lower():
-            return offset
-    return None
 
 
 # ==========================================
@@ -130,7 +113,7 @@ class BookModal(discord.ui.Modal, title="Book an Event"):
             )
 
         # --- timezone lookup ---
-        offset = _find_offset(country)
+        offset = find_offset(country)
         if offset is None:
             return await interaction.response.send_message(
                 "Unknown country. Try: Turkey, UK, US East, Japan, etc.",

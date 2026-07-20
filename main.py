@@ -75,6 +75,8 @@ async def main():
         await bot.load_extension('blue_archive.inventory')
         await bot.load_extension('firebase_website')
         await bot.load_extension('cogs.calendar')
+        await bot.load_extension('cogs.timestamp')
+        await bot.load_extension('cogs.timestamp_friends')
 
         try:
             await bot.start(os.getenv('DISCORD_TOKEN'))
