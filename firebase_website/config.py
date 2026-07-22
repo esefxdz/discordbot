@@ -17,12 +17,11 @@ def get_db() -> AsyncClient:
     """Return the shared Firestore AsyncClient, creating it on first call."""
     global _db
     if _db is None:
-        creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if creds_path is None:
+        if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             raise RuntimeError(
                 "GOOGLE_APPLICATION_CREDENTIALS is not set. "
                 "Point it to your service-account JSON file."
             )
-        _db = AsyncClient()
+        _db = AsyncClient(project=PROJECT_ID)
         log.info("Firestore Admin SDK initialised (project %s)", _db.project)
     return _db
