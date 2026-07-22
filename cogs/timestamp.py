@@ -2,7 +2,7 @@
 ######################################################################
 Usage:
     /timestamp   →  opens a popup form (day, time, country)
-                    and returns all Discord <t:unix:FORMAT> variants.
+                    and returns the Long Date+Time Discord <t:unix:F> tag.
 """
 import calendar as cal_mod
 import logging
@@ -26,23 +26,6 @@ _WEEKDAY: dict[str, int] = {
     "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
     "friday": 4, "saturday": 5, "sunday": 6,
 }
-
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
-
-def _all_formats(unix_ts: int) -> list[tuple[str, str]]:
-    """Return every Discord timestamp format for *unix_ts*."""
-    return [
-        ("Short Time",       f"<t:{unix_ts}:t>"),
-        ("Long Time",        f"<t:{unix_ts}:T>"),
-        ("Short Date",       f"<t:{unix_ts}:d>"),
-        ("Long Date",        f"<t:{unix_ts}:D>"),
-        ("Short Date+Time",  f"<t:{unix_ts}:f>"),
-        ("Long Date+Time",   f"<t:{unix_ts}:F>"),
-        ("Relative",         f"<t:{unix_ts}:R>"),
-    ]
-
 
 # ==========================================
 # MODAL
