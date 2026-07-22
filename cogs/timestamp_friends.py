@@ -80,8 +80,6 @@ class TimestampFriends(commands.Cog):
         # --- quick bail-outs ---
         if message.author.bot:
             return
-        if not HAS_DATEPARSER:
-            return
         if message.author.id not in self.friends:
             return
         if not _TRIGGER_RE.search(message.content):

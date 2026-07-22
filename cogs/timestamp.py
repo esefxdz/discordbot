@@ -148,16 +148,13 @@ class TimestampModal(discord.ui.Modal, title="Timestamp Converter"):
         ).replace(tzinfo=tz)
         unix_ts = int(local_dt.astimezone(timezone.utc).timestamp())
 
-        # --- output all formats ---
+        # --- output single Long Date+Time format ---
         lines = [
             f"**{local_dt.strftime('%d %B at %H:%M')}**",
-            f"Unix: `{unix_ts}`",
+            f"`<t:{unix_ts}:F>`　← Long Date+Time",
             "",
+            "*Times display in each viewer's local timezone.*",
         ]
-        for label, tag in _all_formats(unix_ts):
-            lines.append(f"`{tag}`　← {label}")
-        lines.append("")
-        lines.append("*Copy the tag you want — times display in each viewer's local timezone.*")
 
         await interaction.response.send_message(
             "\n".join(lines),
