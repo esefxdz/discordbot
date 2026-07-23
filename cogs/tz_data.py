@@ -168,17 +168,3 @@ def find_offset(country: str) -> float | None:
             return offset
     return None
 
-
-async def country_autocomplete(
-    _interaction,
-    current: str,
-) -> list:
-    """Return matching countries for slash-command autocomplete."""
-    from discord import app_commands
-    current = current.lower()
-    matches = [
-        app_commands.Choice(name=c, value=c)
-        for c in sorted(COUNTRY_TZ)
-        if current in c.lower()
-    ]
-    return matches[:25]  # Discord limits to 25 suggestions
