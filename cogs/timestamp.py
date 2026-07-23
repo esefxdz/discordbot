@@ -1,7 +1,7 @@
 """Timestamp converter cog — generate Discord timestamp markdown via modal.
 ######################################################################
 Usage:
-    /timestamp   →  opens a popup form (day, time, country)
+    !timestamp   →  sends a button that opens a popup form (day, time, country)
                     and returns the Long Date+Time Discord <t:unix:F> tag.
 """
 import calendar as cal_mod
@@ -10,7 +10,6 @@ import re
 from datetime import datetime, timezone, timedelta
 
 import discord
-from discord import app_commands
 from discord.ext import commands
 
 from .tz_data import find_offset
@@ -145,18 +144,29 @@ class TimestampModal(discord.ui.Modal, title="Timestamp Converter"):
 
 
 # ==========================================
+# BUTTON
+# ==========================================
+
+class TimestampButton(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+
+    @discord.ui.button(label="Convert Timestamp", style=discord.ButtonStyle.primary)
+    async def open_modal(self, interaction: discord.Interaction, _button):
+        await interaction.response.send_modal(TimestampModal())
+
+
+# ==========================================
 # COG
 # ==========================================
 
 class Timestamp(commands.Cog):
-    """Slash command that opens the timestamp-converter modal."""
-
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="timestamp", description="Convert a date+time into Discord timestamp markdown")
-    async def timestamp_cmd(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(TimestampModal())
+    @commands.command(name="timestamp")
+    async def timestamp_cmd(self, ctx: commands.Context) -> None:
+        await ctx.reply("Click below to convert a timestamp:", view=TimestampButton())
 
 
 # ==========================================
