@@ -164,7 +164,7 @@ class Timestamp(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @commands.command(name="timestamp")
+    @commands.command(name="time")
     async def timestamp_cmd(self, ctx: commands.Context) -> None:
         await ctx.reply("Click below to convert a timestamp:", view=TimestampButton())
 
