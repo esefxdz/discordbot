@@ -27,7 +27,7 @@ def has_ampm(text: str) -> bool:
 # in "3:00") and NOT followed by colon (excludes "3:00" hours).  Captures
 # an optional am/pm suffix separately.
 _HOUR_RE = re.compile(
-    r"(?<!:)\b(\d{1,2})(?!\d)(?!\s*:)(?:\s*(am|a\.m\.?|pm|p\.m\.?))?",
+    r"(?<!:)\b(\d{1,2})(?!\d)(?!st\b|nd\b|rd\b|th\b)(?!\s*:)(?:\s*(am|a\.m\.?|pm|p\.m\.?))?",
     re.IGNORECASE,
 )
 
