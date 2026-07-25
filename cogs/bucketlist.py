@@ -1,6 +1,5 @@
 """Bucketlist cog — modal-based bucket list, Firestore Admin SDK."""
 ######################################################################
-import hashlib
 import logging
 import os
 from datetime import datetime, timezone
@@ -146,15 +145,19 @@ class Bucketlist(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-        # build the subcollection path key from credentials
-        bl_user = os.getenv("BUCKETLIST_USER", "")
-        bl_pass = os.getenv("BUCKETLIST_PASS", "")
-        combined = f"{bl_user}:{bl_pass}"
-        self._hash = hashlib.sha256(combined.encode()).hexdigest()
+        # --- access control ---
+        raw = os.getenv("BUCKETLIST_ACCESS", "")
+        self._allowed: set[int] = {
+            int(uid.strip()) for uid in raw.split(",") if uid.strip()
+        }
 
     def _items_ref(self, db):
-        """Return the Firestore subcollection ref gated behind the credential hash."""
-        return db.collection("bucketlist_data").document(self._hash).collection("items")
+        """Return the Firestore collection ref for bucketlist items."""
+        return db.collection("bucketlist")
+
+    def _check(self, user_id: int) -> bool:
+        """Return True if the user is authorised to modify the bucketlist."""
+        return user_id in self._allowed
 
     #this command lists all the bucketlist commands, not an actual bucketlist command##
     @commands.command()
@@ -170,11 +173,15 @@ class Bucketlist(commands.Cog):
     @commands.command(name="bucket")
     async def bucket_cmd(self, ctx: commands.Context) -> None:
         """Send a button that opens the add-item form."""
+        if not self._check(ctx.author.id):
+            return await ctx.reply("You don't have access to the bucketlist.", delete_after=5)
         await ctx.reply("Click below to add an item:", view=BucketButton())
 
     @commands.command(name="unbucket")
     async def unbucket_cmd(self, ctx: commands.Context) -> None:
         """Open a dropdown to pick and remove a bucketlist item."""
+        if not self._check(ctx.author.id):
+            return await ctx.reply("You don't have access to the bucketlist.", delete_after=5)
         await self._unbucket_dropdown(ctx)
 
     async def _unbucket_dropdown(self, ctx: commands.Context) -> None:
