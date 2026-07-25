@@ -34,4 +34,4 @@ run these to see the sub-commands:
 - `!fun` — the junk commands
 - `!gacha help` — blue archive recruitment simulator (pick banners, pull with live rates)
 - `!book` / `!unbook` — calendar event booking (whitelisted users only)
-- `/timestamp` — Discord timestamp generator modal
+- `!time` — Discord timestamp generator modal
