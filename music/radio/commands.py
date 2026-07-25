@@ -9,7 +9,7 @@ from ..shared.constants import (
 )
 from .views import _CategoryView
 from .icy import IcyMetadataPoller
-
+from . import gensokyo
 log = logging.getLogger(__name__)
 
 
@@ -156,8 +156,14 @@ class RadioCommands:
             embed.set_footer(text="yuuka radio · use !stop to disconnect")
             await interaction.followup.send(embed=embed)
 
-            # Spawn ICY metadata poller if this station supports it
-            if station["url"] in self._icy_urls:
+            # Spawn gensokyo special metadata this snippet is for gensokyo radio only
+            if station["name"] == "Gensokyo Radio":
+                log.info("Starting Gensokyo API poller for %s", station["name"])
+                self._cancel_icy_poller(guild.id)
+                self._icy_tasks[guild.id] = asyncio.create_task(
+                    gensokyo.poll(self, guild.id, station["name"])
+                )
+            elif station["url"] in self._icy_urls:
                 log.info("Starting ICY poller for %s", station["name"])
                 self._cancel_icy_poller(guild.id)
                 poller = IcyMetadataPoller(
@@ -168,7 +174,7 @@ class RadioCommands:
                 )
                 self._icy_tasks[guild.id] = asyncio.create_task(poller.run())
             else:
-                log.info("No ICY support for %s (%s not in set of %d URLs)",
+                log.info("No metadata support for %s (%s not in ICY set of %d URLs)",
                          station["name"], station["url"], len(self._icy_urls))
 
     # ── ICY now-playing embed ─────────────────────────────────────────────────
