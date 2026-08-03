@@ -25,3 +25,7 @@ firebase_service_account_test.json
 .deepseek/
 radio_check.sh
 TECH_DEBT.md
+_check_students.py
+_check_names.py
+_check_banner_api.py
+

@@ -78,7 +78,7 @@ class BlueArchiveGacha(commands.Cog):
         await gacha_db.init_db()
         await self._refresh_banners()
         await db.merge_ennead(self._banner_cache)
-        self._refresh_task = self.bot.loop.create_task(self._periodic_refresh())
+        self._refresh_task = asyncio.create_task(self._periodic_refresh())
 
     async def cog_unload(self) -> None:
         if hasattr(self, '_refresh_task'):
