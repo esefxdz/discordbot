@@ -4,9 +4,11 @@
 from pathlib import Path
 
 # ── Paths ───────────────────────────────────────────────────────────────────
-BUNDLED_DB = Path(__file__).parent / "ba_students.json"
-BANNER_FILE = Path("data/ba_banner_state.json")
-ASSETS_DIR = Path(__file__).parent / "assets"
+_PKG_DIR = Path(__file__).parent
+_DATA_DIR = _PKG_DIR.parent / "data"
+BUNDLED_DB = _PKG_DIR / "ba_students.json"
+BANNER_FILE = _DATA_DIR / "ba_banner_state.json"
+ASSETS_DIR = _PKG_DIR / "assets"
 BG_PATH = ASSETS_DIR / "gacha_bg.png"
 GACHA_ANIM_PATH = ASSETS_DIR / "Arona_Blue_Gacha_Animation.gif"
 GACHA_ANIM_DURATION = 3.5  # 195 frames × 100 ms (used to be 19.5 will be changed later)

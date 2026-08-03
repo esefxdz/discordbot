@@ -2,8 +2,10 @@
 """Pillow-based compositor: renders an in-game-style gacha recruitment result screen."""
 ######################################################################
 import asyncio
+import functools
 import io
 import logging
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -19,7 +21,7 @@ from .constants import (
     HEADER_Y, FOOTER_Y,
     STAR_BANNER_H, NAME_STRIP_H, PORTRAIT_TOP, PORTRAIT_H,
     RARITY_COLOR, RARITY_BG,
-    BG_PATH,
+    BG_PATH, SPARK_TARGET,
     FONT_PATHS,
 )
 
@@ -27,8 +29,9 @@ log = logging.getLogger(__name__)
 
 # ── Font helpers ───────────────────────────────────────────────────────────
 
+@functools.lru_cache(maxsize=16)
 def _get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    """Try to load a nice font; fall back to default."""
+    """Try to load a nice font; fall back to default.  Cached per (size, bold)."""
     for fp in FONT_PATHS:
         if Path(fp).exists():
             try:
@@ -86,7 +89,6 @@ def _star_polygon(cx: int, cy: int, outer_r: int, inner_r: int) -> list[tuple[in
     
     Uses 10 alternating outer/inner radius points, rotated by pi/5 each step.
     """
-    import math
     points = []
     for i in range(10):
         angle = math.pi / 2 + i * math.pi / 5  # start from top
@@ -118,6 +120,23 @@ def _draw_star_icons(
         draw.polygon(pts, fill=color)
 
 
+# ── Sync render helpers (run in thread) ────────────────────────────────────
+
+def _load_background() -> Image.Image:
+    """Load or create the render canvas background."""
+    if BG_PATH.exists():
+        return Image.open(BG_PATH).convert("RGBA")
+    return Image.new("RGBA", (CANVAS_W, CANVAS_H), (180, 226, 245))
+
+
+def _encode_png(canvas: Image.Image) -> io.BytesIO:
+    """Encode a Pillow image to optimized PNG bytes."""
+    output = io.BytesIO()
+    canvas.convert("RGB").save(output, format="PNG", optimize=True)
+    output.seek(0)
+    return output
+
+
 # ── Main render ────────────────────────────────────────────────────────────
 
 async def render_pull(
@@ -135,11 +154,8 @@ async def render_pull(
     Returns:
         BytesIO containing the rendered PNG image.
     """
-    # Load background
-    if BG_PATH.exists():
-        canvas = Image.open(BG_PATH).convert("RGBA")
-    else:
-        canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H), (180, 226, 245))
+    # Load background (file I/O off the event loop)
+    canvas = await asyncio.to_thread(_load_background)
     draw = ImageDraw.Draw(canvas)
 
     # ── Header ──────────────────────────────────────────────────────────
@@ -167,11 +183,8 @@ async def render_pull(
         cy = GRID_Y + row * (CARD_H + GAP_Y)
         _draw_card(canvas, draw, cx, cy, student, portrait)
 
-    # ── Encode ──────────────────────────────────────────────────────────
-    output = io.BytesIO()
-    canvas.convert("RGB").save(output, format="PNG", optimize=True)
-    output.seek(0)
-    return output
+    # ── Encode (CPU-bound — off the event loop) ─────────────────────────
+    return await asyncio.to_thread(_encode_png, canvas)
 
 
 def _draw_header(draw: ImageDraw.Draw, banner_name: str) -> None:
@@ -202,7 +215,7 @@ def _draw_header(draw: ImageDraw.Draw, banner_name: str) -> None:
 
 def _draw_footer(draw: ImageDraw.Draw, spark_count: int) -> None:
     """Draw spark counter at the bottom."""
-    text = f"Recruitment Points: {spark_count} / 200"
+    text = f"Recruitment Points: {spark_count} / {SPARK_TARGET}"
     tw = draw.textlength(text, font=FOOTER_FONT)
     draw.text(
         ((CANVAS_W - tw) / 2 + 1, FOOTER_Y + 1),

@@ -25,19 +25,30 @@ log = logging.getLogger(__name__)
 _banner_lock = asyncio.Lock()
 
 
+def _read_banner_file() -> dict:
+    """Read banner state from disk (runs in thread)."""
+    if BANNER_FILE.exists():
+        with open(BANNER_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def _write_banner_file(state: dict) -> None:
+    """Write banner state to disk (runs in thread)."""
+    BANNER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(BANNER_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+
 async def _load_banner_state() -> dict:
     """Which banner each user has picked."""
     async with _banner_lock:
-        if BANNER_FILE.exists():
-            with open(BANNER_FILE, "r") as f:
-                return json.load(f)
-        return {}
+        return await asyncio.to_thread(_read_banner_file)
 
 
 async def _save_banner_state(state: dict) -> None:
-    BANNER_FILE.parent.mkdir(parents=True, exist_ok=True)
-    async with _banner_lock, open(BANNER_FILE, "w") as f:
-        json.dump(state, f, indent=2)
+    async with _banner_lock:
+        await asyncio.to_thread(_write_banner_file, state)
 
 
 async def _get_banner_id(user_id: int) -> Optional[str]:
@@ -63,7 +74,7 @@ class BlueArchiveGacha(commands.Cog):
 
     async def cog_load(self) -> None:
         """Load student DB, init SQLite, and fetch banners on startup."""
-        db.load()
+        await asyncio.to_thread(db.load)
         await gacha_db.init_db()
         await self._refresh_banners()
         await db.merge_ennead(self._banner_cache)

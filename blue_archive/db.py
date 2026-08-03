@@ -11,7 +11,8 @@ from .constants import ELIGMA_YIELD
 
 log = logging.getLogger(__name__)
 
-DB_PATH = Path("data/ba_gacha.db")
+_PKG_DIR = Path(__file__).parent
+DB_PATH = _PKG_DIR.parent / "data" / "ba_gacha.db"
 
 
 def _connect() -> sqlite3.Connection:
