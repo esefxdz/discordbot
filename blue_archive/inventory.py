@@ -9,7 +9,7 @@ from discord.ext import commands
 from . import db as gacha_db
 from .data import db
 from .constants import (
-    PAGE_SIZE, POOL_TOTALS, FILTER_LABELS,
+    PAGE_SIZE, FILTER_LABELS,
     RARITY_SYMBOL, RARITY_LABEL, RARITY_EMBED_COLOR,
     ELIGMA_YIELD,
 )
@@ -44,9 +44,9 @@ class InventoryView(discord.ui.View):
 
     # ── helpers ──────────────────────────────────────────────────────────
 
-    def _get_rows(self) -> list[tuple[int, str, int, int]]:
+    async def _get_rows(self) -> list[tuple[int, str, int, int]]:
         """Return [(student_id, name, count, rarity), ...] filtered and sorted."""
-        rows = gacha_db.get_inventory(self.uid)
+        rows = await gacha_db.get_inventory(self.uid)
         result = []
         for sid, count in rows:
             s = db.get(sid)
@@ -58,13 +58,13 @@ class InventoryView(discord.ui.View):
         result.sort(key=lambda x: (-x[3], x[1]))
         return result
 
-    def _build_dashboard(self) -> discord.Embed:
+    async def _build_dashboard(self) -> discord.Embed:
         """Landing page with stats and progress bars."""
-        stats = gacha_db.get_inventory_stats(self.uid)
-        eligma = gacha_db.get_eligma(self.uid)
+        stats = await gacha_db.get_inventory_stats(self.uid)
+        eligma = await gacha_db.get_eligma(self.uid)
 
         # Count by rarity
-        rows = gacha_db.get_inventory(self.uid)
+        rows = await gacha_db.get_inventory(self.uid)
         by_rarity = {1: 0, 2: 0, 3: 0}
         for sid, _ in rows:
             s = db.get(sid)
@@ -79,9 +79,9 @@ class InventoryView(discord.ui.View):
 
         # Progress bars per rarity
         for r in (3, 2, 1):
-            pct = _bar(by_rarity[r], POOL_TOTALS[r])
+            pct = _bar(by_rarity[r], db.pool_totals[r])
             embed.add_field(
-                name=f"{RARITY_LABEL[r]}  {by_rarity[r]}/{POOL_TOTALS[r]}",
+                name=f"{RARITY_LABEL[r]}  {by_rarity[r]}/{db.pool_totals[r]}",
                 value=f"`{pct}`",
                 inline=True,
             )
@@ -95,9 +95,9 @@ class InventoryView(discord.ui.View):
         embed.set_footer(text="Use buttons below to browse")
         return embed
 
-    def _build_collection_page(self) -> discord.Embed:
+    async def _build_collection_page(self) -> discord.Embed:
         """Paginated student list."""
-        all_rows = self._get_rows()
+        all_rows = await self._get_rows()
         total_pages = max(1, (len(all_rows) + PAGE_SIZE - 1) // PAGE_SIZE)
         self.page = min(self.page, total_pages - 1)
 
@@ -124,8 +124,8 @@ class InventoryView(discord.ui.View):
         embed.set_footer(text=f"Page {self.page + 1}/{total_pages}")
         return embed
 
-    def _build_eligma_page(self) -> discord.Embed:
-        amount = gacha_db.get_eligma(self.uid)
+    async def _build_eligma_page(self) -> discord.Embed:
+        amount = await gacha_db.get_eligma(self.uid)
         return discord.Embed(
             title="Eligma",
             description=(
@@ -179,35 +179,35 @@ class InventoryView(discord.ui.View):
     async def _on_dash(self, interaction: discord.Interaction) -> None:
         self.page = 0
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_dashboard(), view=self)
+        await interaction.response.edit_message(embed=await self._build_dashboard(), view=self)
 
     async def _on_coll(self, interaction: discord.Interaction) -> None:
         self.page = 0
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_collection_page(), view=self)
+        await interaction.response.edit_message(embed=await self._build_collection_page(), view=self)
 
     async def _on_elig(self, interaction: discord.Interaction) -> None:
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_eligma_page(), view=self)
+        await interaction.response.edit_message(embed=await self._build_eligma_page(), view=self)
 
     async def _on_filter(self, interaction: discord.Interaction) -> None:
         label = interaction.data["custom_id"][2:]  # strip "f_"
         self.filter_rarity = FILTER_LABELS.get(label)
         self.page = 0
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_collection_page(), view=self)
+        await interaction.response.edit_message(embed=await self._build_collection_page(), view=self)
 
     async def _on_prev(self, interaction: discord.Interaction) -> None:
         self.page = max(0, self.page - 1)
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_collection_page(), view=self)
+        await interaction.response.edit_message(embed=await self._build_collection_page(), view=self)
 
     async def _on_next(self, interaction: discord.Interaction) -> None:
-        all_rows = self._get_rows()
+        all_rows = await self._get_rows()
         max_page = max(0, (len(all_rows) - 1) // PAGE_SIZE)
         self.page = min(max_page, self.page + 1)
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_collection_page(), view=self)
+        await interaction.response.edit_message(embed=await self._build_collection_page(), view=self)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
@@ -240,7 +240,7 @@ class Inventory(commands.Cog):
         else:
             uid = ctx.author.id
 
-        rows = gacha_db.get_inventory(uid)
+        rows = await gacha_db.get_inventory(uid)
         if not rows:
             if uid == ctx.author.id:
                 await ctx.reply("Your collection is empty. Use `!pull` to recruit students!")
@@ -249,7 +249,7 @@ class Inventory(commands.Cog):
             return
 
         view = InventoryView(uid, ctx.author.id)
-        await ctx.reply(embed=view._build_dashboard(), view=view)
+        await ctx.reply(embed=await view._build_dashboard(), view=view)
 
 
 async def setup(bot: commands.Bot) -> None:

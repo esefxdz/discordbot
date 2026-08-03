@@ -19,7 +19,9 @@ _get_id.py
 AGENTS.md
 firebase-service-account.json
 firebase_service_account.json
+firebase_service_account_test.json
 **/.codewhale/*
 !**/.codewhale/constitution.json
 .deepseek/
 radio_check.sh
+TECH_DEBT.md

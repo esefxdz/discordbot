@@ -13,6 +13,7 @@ GACHA_ANIM_DURATION = 3.5  # 195 frames × 100 ms (used to be 19.5 will be chang
 
 # ── APIs ────────────────────────────────────────────────────────────────────
 BANNER_API = "https://api.ennead.cc/buruaka/banner"
+CHARACTER_API = "https://api.ennead.cc/buruaka/character"
 JOEXYZ_CDN = "https://ba.joexyz.online/cdn/v2/images"
 
 # ── Gacha rates (matching real Blue Archive) ────────────────────────────────
@@ -67,7 +68,6 @@ PORTRAIT_H = CARD_H - PORTRAIT_TOP - NAME_STRIP_H - 4
 
 # ── Inventory display ───────────────────────────────────────────────────────
 PAGE_SIZE = 10
-POOL_TOTALS = {3: 106, 2: 22, 1: 11}  # standard-pool size for progress bars
 FILTER_LABELS: dict[str, int | None] = {"All": None, "3★": 3, "2★": 2, "1★": 1}
 
 # ── CDN icon slug mapping (SchaleDB variant suffix → joexyz CDN slug suffix) ─
@@ -109,12 +109,8 @@ def cdn_icon_slug(name: str) -> str:
 
     return name.lower().replace(" ", "_")
 
-# ── Font paths ──────────────────────────────────────────────────────────────
+# ── Font paths (tried in order; Pillow default used as last resort) ─────────
 FONT_PATHS = [
-    "C:/Windows/Fonts/segoeui.ttf",
-    "C:/Windows/Fonts/segoeuib.ttf",
-    "C:/Windows/Fonts/arial.ttf",
-    "C:/Windows/Fonts/arialbd.ttf",
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
     "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
 ]
