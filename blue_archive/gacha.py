@@ -87,9 +87,10 @@ class BlueArchiveGacha(commands.Cog):
     async def _refresh_banners(self) -> None:
         try:
             self._banner_cache = await fetch_banners()
-            self._cache_ready.set()
         except Exception:
             log.exception("Banner refresh failed")
+        finally:
+            self._cache_ready.set()
 
     async def _periodic_refresh(self) -> None:
         while True:
