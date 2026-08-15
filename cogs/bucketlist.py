@@ -151,9 +151,12 @@ class Bucketlist(commands.Cog):
             int(uid.strip()) for uid in raw.split(",") if uid.strip()
         }
 
+        # --- why the fuck did i change this back in the day? ---
+        self._hash = os.getenv("BUCKETLIST_HASH", "").strip()
+
     def _items_ref(self, db):
         """Return the Firestore collection ref for bucketlist items."""
-        return db.collection("bucketlist")
+        return db.collection("bucketlist_data").document(self._hash).collection("items")
 
     def _check(self, user_id: int) -> bool:
         """Return True if the user is authorised to modify the bucketlist."""
