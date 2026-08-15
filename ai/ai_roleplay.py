@@ -5,6 +5,7 @@ import os
 import re
 import time
 import asyncio
+from datetime import datetime, timezone
 import discord
 import logging
 from discord.ext import commands
@@ -22,9 +23,8 @@ MODEL_FLASH = 'deepseek-v4-flash'
 MODEL_PRO = 'deepseek-v4-pro'
 VALID_MODELS = (MODEL_FLASH, MODEL_PRO)
 
-# reasoning_effort only accepts these two values on the DeepSeek API.
-# low/medium silently collapse to high, xhigh collapses to max, so there's
-# no point exposing anything but these two.
+# reasoning_effort maps to three distinct real effort levels: low, high, max.
+# (medium and xhigh both collapse to high.) The UI only exposes high/max.
 VALID_EFFORTS = ('high', 'max')
 
 # Thinking mode is enabled by default on DeepSeek's API unless you
@@ -36,13 +36,25 @@ MAX_TOKENS_NORMAL = 1024
 MAX_TOKENS_THINKING = 4096
 
 # Per-1M-token pricing (USD), per DeepSeek's official pricing page.
-# Pro costs roughly 3x flash on input and output — tracked separately so
-# !aicost is accurate when you've been toggling !turbo.
-#i could not find a way to implement dynamic pricing, this is just basic maths based on their pricing
+# Peak/off-peak billing took effect 2026-08-16: peak hours are 01:00-04:00
+# and 06:00-10:00 UTC, all other hours are off-peak (half the peak rate).
 PRICING = {
-    MODEL_FLASH: {'cache_hit': 0.0028, 'cache_miss': 0.14, 'output': 0.28},
-    MODEL_PRO:   {'cache_hit': 0.003625, 'cache_miss': 0.435, 'output': 0.87},
+    MODEL_FLASH: {
+        'off_peak': {'cache_hit': 0.007, 'cache_miss': 0.22, 'output': 0.66},
+        'peak':     {'cache_hit': 0.014, 'cache_miss': 0.44, 'output': 1.32},
+    },
+    MODEL_PRO: {
+        'off_peak': {'cache_hit': 0.022, 'cache_miss': 0.66, 'output': 1.98},
+        'peak':     {'cache_hit': 0.044, 'cache_miss': 1.32, 'output': 3.96},
+    },
 }
+
+
+def current_prices(model):
+    """Return the per-1M-token rates for the current UTC hour (peak/off-peak)."""
+    hour = datetime.now(timezone.utc).hour
+    peak = (1 <= hour <= 4) or (6 <= hour <= 10)
+    return PRICING[model]['peak' if peak else 'off_peak']
 
 #the very much needed ai shit
 
@@ -186,10 +198,6 @@ class AIRoleplay(commands.Cog):
             current_summary = self.channel_summary.get(channel_id, "")
             evicted_text = evicted_message.get('content', '')
             
-            # handle vision support list format
-            if isinstance(evicted_text, list):
-                evicted_text = next((item['text'] for item in evicted_text if item.get('type') == 'text'), '')
-                
             if not evicted_text:
                 return
 
@@ -249,7 +257,7 @@ class AIRoleplay(commands.Cog):
         except discord.Forbidden:
             return None
 
-    #this sends the message as the persona, with vision support (vision support is broken rn) 
+    #this sends the message as the persona
     async def send_as_char(self, message, text, persona):
         avatar_path = os.path.join(os.path.dirname(__file__), 'personalities', f'{persona.lower()}_avatar.png')
         avatar_bytes = None
@@ -326,20 +334,7 @@ class AIRoleplay(commands.Cog):
         persona = self.active_personas.get(cid, 'yuuka')
         prompt = self.get_prompt(cid)
 
-        # VISION SUPPORT DOESNT WORK LOL
-        user_content = [{"type": "text", "text": f'{message.author.display_name}: {content}'}]
-        has_images = False
-        
-        for att in message.attachments:
-            if att.content_type and att.content_type.startswith('image/'):
-                has_images = True
-                user_content.append({
-                    "type": "image_url",
-                    "image_url": {"url": att.url}
-                })
-
-        # DeepSeek and older models prefer pure strings if there are no images
-        final_content = user_content if has_images else user_content[0]["text"]
+        final_content = f'{message.author.display_name}: {content}'
         
         # summarize evicted memory before it drops off the deque
         if len(mem) >= mem.maxlen:
@@ -357,22 +352,19 @@ class AIRoleplay(commands.Cog):
         api_msgs += list(mem)
         model_to_use = self.active_model  # always MODEL_FLASH or MODEL_PRO, never swapped
 
-        #VISION SUPPORT END STILL DOESNT WORK LOL
-
         # ----- thinking mode (per channel, correct DeepSeek params) -----
-        # The "thinking" key must be sent EVERY request — the API defaults
-        # to enabled, so omitting it when you want it off does nothing.
+        # `thinking` (the toggle) goes in extra_body; `reasoning_effort` is a
+        # separate TOP-LEVEL param — nesting it inside `thinking` is ignored.
         thinking_on = cid in self.thinking_channels
-        thinking_body = {"type": "enabled" if thinking_on else "disabled"}
-        if thinking_on:
-            thinking_body["reasoning_effort"] = self.thinking_effort.get(cid, "high")
         kwargs = {
             "model": model_to_use,
             "messages": api_msgs,
             "max_tokens": MAX_TOKENS_THINKING if thinking_on else MAX_TOKENS_NORMAL,
-            "extra_body": {"thinking": thinking_body},
+            "extra_body": {"thinking": {"type": "enabled" if thinking_on else "disabled"}},
             "temperature": self.temperature
         }
+        if thinking_on:
+            kwargs["reasoning_effort"] = self.thinking_effort.get(cid, "high")
 
         async with message.channel.typing():
             try:
@@ -400,7 +392,7 @@ class AIRoleplay(commands.Cog):
             if cache_hit == 0 and cache_miss == 0:
                 cache_miss = resp.usage.prompt_tokens
 
-            price = PRICING.get(model_to_use, PRICING[MODEL_FLASH])
+            price = current_prices(model_to_use)
             self.total_cost += (
                 cache_hit * (price['cache_hit'] / 1_000_000)
                 + cache_miss * (price['cache_miss'] / 1_000_000)
