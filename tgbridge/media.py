@@ -15,8 +15,7 @@ log = logging.getLogger(__name__)
 
 FFMPEG = shutil.which("ffmpeg")
 FFPROBE = shutil.which("ffprobe")
-
-MAX_CONVERTED_BYTES = 8 * 1024 * 1024   # bigger than this, discord rejects it
+MAX_CONVERTED_BYTES = int(9.5 * 1024 * 1024)
 
 class _Oversize:
     __slots__ = ("size",)
@@ -247,7 +246,9 @@ async def to_gif(data: bytes, in_suffix: str = ".mp4",
 
     for index, tier in enumerate(_GIF_TIERS):
         weighted = _pixel_frames(tier, probed)
-        if weighted and weighted * rate > max_bytes:
+        if index > 0 and weighted and weighted * rate > max_bytes:
+            log.debug("gif tier %d skipped: predicted %.2f MB > %.2f MB budget",
+                      index, weighted * rate / 1048576, max_bytes / 1048576)
             continue
 
         remaining = GIF_TOTAL_BUDGET - (loop.time() - started)
@@ -255,27 +256,35 @@ async def to_gif(data: bytes, in_suffix: str = ".mp4",
             log.info("gif ladder out of time after tier %d", index)
             break
 
+        attempt_timeout = min(GIF_ATTEMPT_TIMEOUT, remaining)
+        attempt_started = loop.time()
         try:
             out = await _convert(
                 data, in_suffix, ".gif",
                 ["-filter_complex", _gif_filter(**tier), "-loop", "0"],
-                timeout=min(GIF_ATTEMPT_TIMEOUT, remaining),
+                timeout=attempt_timeout,
                 max_bytes=max_bytes)
         except asyncio.TimeoutError:
+            log.info("gif tier %d timed out after %.1fs (budget was %.1fs)",
+                     index, loop.time() - attempt_started, attempt_timeout)
             continue                    # too slow at this quality, drop a rung
 
+        elapsed = loop.time() - attempt_started
         if isinstance(out, bytes):
-            log.info("gif tier %d: fps=%s width=%s per_frame=%s -> %.2f MB",
+            log.info("gif tier %d: fps=%s width=%s per_frame=%s -> %.2f MB in %.1fs",
                      index, tier["fps"] or "native", tier["width"] or "native",
-                     tier["per_frame"], len(out) / 1048576)
+                     tier["per_frame"], len(out) / 1048576, elapsed)
             return out
         if out is None:
             # a real ffmpeg failure — every other tier reads the same input
-            log.debug("gif encode failed outright at tier %d — giving up", index)
+            log.debug("gif encode failed outright at tier %d after %.1fs — giving up",
+                      index, elapsed)
             return None
 
         if weighted:
             rate = max(rate, out.size / weighted * 0.9)
+        log.debug("gif tier %d oversize: %.2f MB > %.2f MB budget (%.1fs) — trying next tier",
+                  index, out.size / 1048576, max_bytes / 1048576, elapsed)
 
     log.info("no gif tier fit under %.1f MB — keeping original",
              max_bytes / 1048576)
