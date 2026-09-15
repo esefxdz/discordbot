@@ -16,7 +16,7 @@ GACHA_ANIM_DURATION = 3.5  # 195 frames × 100 ms (used to be 19.5 will be chang
 # ── APIs ────────────────────────────────────────────────────────────────────
 BANNER_API = "https://api.ennead.cc/buruaka/banner"
 CHARACTER_API = "https://api.ennead.cc/buruaka/character"
-JOEXYZ_CDN = "https://ba.joexyz.online/cdn/v2/images"
+PORTRAIT_CDN = "https://schaledb.com/images"
 
 # ── Gacha rates (matching real Blue Archive) ────────────────────────────────
 # Regular/Pickup:   3★ = 3.0%,  2★ = 18.5%,  1★ = 78.5%
@@ -71,45 +71,6 @@ PORTRAIT_H = CARD_H - PORTRAIT_TOP - NAME_STRIP_H - 4
 # ── Inventory display ───────────────────────────────────────────────────────
 PAGE_SIZE = 10
 FILTER_LABELS: dict[str, int | None] = {"All": None, "3★": 3, "2★": 2, "1★": 1}
-
-# ── CDN icon slug mapping (SchaleDB variant suffix → joexyz CDN slug suffix) ─
-# Base names without a parenthesised variant use the lowercased name directly.
-# "Aris" is a special case — the CDN uses "aris", not "arisu".
-CDN_SUFFIX_MAP: dict[str, str] = {
-    "New Year": "newyear",
-    "Hot Spring": "onsen",
-    "Bunny": "bunnygirl",
-    "Cheer Squad": "cheerleader",
-    "Camp": "camp",
-    "Cycling": "cycling",
-    "Dress": "dress",
-    "Small": "small",
-    "Maid": "maid",
-    "Track": "track",
-    "Swimsuit": "swimsuit",
-    "Band": "band",
-    "Christmas": "christmas",
-    "Casual": "casual",
-    "Guide": "guide",
-}
-
-def cdn_icon_slug(name: str) -> str:
-    """Convert a SchaleDB student Name to the joexyz CDN icon filename slug."""
-    # Normalise "Name Terror" into the same parenthesised path
-    if name.endswith(" Terror"):
-        name = name[:-7] + " (Terror)"
-    # "Aris" is "aris" on the CDN, not "arisu"
-    if name == "Aris":
-        return "aris"
-
-    if "(" in name:
-        base, rest = name.split("(", 1)
-        base = base.strip().lower().replace(" ", "_")
-        variant = rest.rstrip(")").strip()
-        suffix = CDN_SUFFIX_MAP.get(variant, variant.lower().replace(" ", "_"))
-        return f"{base}_{suffix}"
-
-    return name.lower().replace(" ", "_")
 
 # ── Font paths (tried in order; Pillow default used as last resort) ─────────
 FONT_PATHS = [

@@ -48,36 +48,24 @@ FOOTER_FONT = _get_font(18, bold=False)
 # ── Image fetching ─────────────────────────────────────────────────────────
 
 async def _fetch_portrait(session: aiohttp.ClientSession, student: dict) -> Optional[Image.Image]:
-    """Download a student's face icon from the joexyz CDN.
+    """Download a student's full-body portrait and crop it to the card area.
 
-    Uses the student icon CDN (face/upper-body crop). Falls back to the
-    skill-portrait (full-body art) if the icon is unavailable.
+    Portraits come from the SchaleDB image CDN, keyed by student ID.
     """
-    # 1. Try the face icon
-    icon_url = db.cdn_icon(student)
+    url = db.cdn_portrait(student)
     try:
-        async with session.get(icon_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-            if resp.status == 200:
-                data = await resp.read()
-                return Image.open(io.BytesIO(data)).convert("RGBA")
-    except Exception:
-        log.debug("CDN icon failed for %s, trying skill portrait fallback", student["Name"])
-
-    # 2. Fallback: skill portrait (full-body character art)
-    sp_url = db.cdn_skill_portrait(student)
-    try:
-        async with session.get(sp_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
             if resp.status == 200:
                 data = await resp.read()
                 img = Image.open(io.BytesIO(data)).convert("RGBA")
-                # Skill portraits are full-body; crop upper portion for card fit
+                # Full-body art; crop the upper portion to fit the card.
                 p_w, p_h = img.size
                 crop_h = int(p_w * 1.20)
                 if crop_h < p_h:
                     img = img.crop((0, 0, p_w, crop_h))
                 return img
     except Exception:
-        log.exception("Failed to fetch any portrait for %s", student["Name"])
+        log.exception("Failed to fetch portrait for %s", student["Name"])
 
     return None
 

@@ -14,8 +14,7 @@ from .constants import (
     BUNDLED_DB,
     BANNER_API,
     CHARACTER_API,
-    JOEXYZ_CDN,
-    cdn_icon_slug,
+    PORTRAIT_CDN,
     BANNER_RATES,
     DEFAULT_RATES,
     PULL10_RATES,
@@ -304,17 +303,9 @@ class StudentDB:
         pullable = [s for s in self.students if s.get("IsLimited", 0) < 2]
         return random.choice(pullable or self.students)
 
-    def cdn_icon(self, student: dict) -> str:
-        """joexyz CDN icon URL for a student (face/upper-body)."""
-        slug = cdn_icon_slug(student["Name"])
-        return f"{JOEXYZ_CDN}/students/icons/{slug}.png"
-
-    def cdn_skill_portrait(self, student: dict) -> str:
-        """joexyz CDN skill-portrait URL (full-body fallback)."""
-        dev = student.get("DevName", "")
-        if not dev:
-            return ""
-        return f"{JOEXYZ_CDN}/skill-portraits/Skill_Portrait_{dev}.png"
+    def cdn_portrait(self, student: dict) -> str:
+        """SchaleDB CDN full-body portrait URL for a student (keyed by ID)."""
+        return f"{PORTRAIT_CDN}/student/portrait/{student['Id']}.webp"
 
 
 # Global singleton
