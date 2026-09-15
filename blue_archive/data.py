@@ -38,7 +38,17 @@ class StudentDB:
         if self._loaded:
             return
         with open(BUNDLED_DB, "r", encoding="utf-8") as f:
-            self.students = json.load(f)
+            students = json.load(f)
+        self._index(students)
+
+    def load_data(self, students: list[dict]) -> None:
+        """Index an already-parsed student list (used by the roster refresher)."""
+        if self._loaded:
+            return
+        self._index(list(students))
+
+    def _index(self, students: list[dict]) -> None:
+        self.students = students
 
         excluded = 0
         for s in self.students:
@@ -81,15 +91,7 @@ class StudentDB:
         )
 
     async def merge_ennead(self, banner_cache: dict) -> int:
-        """Merge characters from the ennead.cc API that aren't in the SchaleDB.
-
-        Fetches the full character list, maps fields to SchaleDB format, and
-        derives IsLimited from banner history.  Only characters with IDs not
-        already present are added — existing SchaleDB entries are never touched.
-
-        Must be called after load() and after banners have been fetched.
-        Returns the number of new characters merged.
-        """
+        """Fetch the ennead.cc character API and merge any new characters."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(CHARACTER_API, timeout=aiohttp.ClientTimeout(total=15)) as resp:
@@ -101,9 +103,16 @@ class StudentDB:
             log.exception("Failed to fetch ennead character API")
             return 0
 
-        # Build IsLimited from all known banners (0=standard, 1=limited)
-        is_limited = self._build_is_limited(banner_cache)
+        return self.merge_chars(chars, banner_cache)
 
+    def merge_chars(self, chars: list[dict], banner_cache: dict) -> int:
+        """Merge already-fetched ennead characters that aren't in the roster.
+
+        Maps fields to SchaleDB format and derives IsLimited from banner
+        history. Only characters with IDs not already present are added —
+        existing entries are never touched. Returns the number merged.
+        """
+        is_limited = self._build_is_limited(banner_cache)
         try:
             added = self._merge_chars(chars, is_limited)
             if added:
@@ -116,6 +125,7 @@ class StudentDB:
                 )
         except Exception:
             log.exception("Failed to merge ennead characters")
+            return 0
         return added
 
     def _merge_chars(self, chars: list[dict], is_limited: dict[str, int]) -> int:
