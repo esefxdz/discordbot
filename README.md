@@ -21,7 +21,7 @@ it started as a simple music bot and became a massive mess of features i actuall
 - deepseek api for the ai stuff
 - wavelink + lavalink (java) for music
 - psutil + lm-sensors for hardware stats
-- runs as systemd services: `discordbot` and `lavalink`
+- runs as systemd services: `discordbot`, `lavalink`, and a weekly `discordbot-refresh.timer` that auto-updates the Blue Archive roster
 
 ## commands
 
