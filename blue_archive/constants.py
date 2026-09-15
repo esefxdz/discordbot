@@ -17,6 +17,17 @@ GACHA_ANIM_DURATION = 3.5  # 195 frames × 100 ms (used to be 19.5 will be chang
 BANNER_API = "https://api.ennead.cc/buruaka/banner"
 CHARACTER_API = "https://api.ennead.cc/buruaka/character"
 PORTRAIT_CDN = "https://schaledb.com/images"
+WIKI_PORTRAIT_BASE = "https://bluearchive.wiki/wiki/Special:FilePath/"
+WIKI_VARIANT_MAP: dict[str, str] = {
+    "Bunny": "Bunny Girl",
+    "School": "School Uniform",
+    "Armed": "Battle",
+    "Track": "Sportswear",
+    "Cheer Squad": "Cheerleader",
+    "Pajamas": "Pajama",
+    "Cycling": "Riding",
+    "Small": "Kid",
+}
 
 # ── Gacha rates (matching real Blue Archive) ────────────────────────────────
 # Regular/Pickup:   3★ = 3.0%,  2★ = 18.5%,  1★ = 78.5%

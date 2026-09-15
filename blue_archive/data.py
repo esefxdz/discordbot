@@ -7,6 +7,7 @@ import random
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 import aiohttp
 
@@ -15,6 +16,8 @@ from .constants import (
     BANNER_API,
     CHARACTER_API,
     PORTRAIT_CDN,
+    WIKI_PORTRAIT_BASE,
+    WIKI_VARIANT_MAP,
     BANNER_RATES,
     DEFAULT_RATES,
     PULL10_RATES,
@@ -304,7 +307,23 @@ class StudentDB:
         return random.choice(pullable or self.students)
 
     def cdn_portrait(self, student: dict) -> str:
-        """SchaleDB CDN full-body portrait URL for a student (keyed by ID)."""
+        """bluearchive.wiki portrait URL (bust art, keyed by student name)."""
+        name = student["Name"]
+        if name.endswith(" Terror"):
+            name = name[:-7] + " (Terror)"
+        if name == "Aris":
+            name = "Arisu"
+        elif name.startswith("Aris ("):
+            name = "Arisu " + name[5:]
+        if "(" in name:
+            base, variant = name.split("(", 1)
+            variant = variant.rstrip(")").strip()
+            variant = WIKI_VARIANT_MAP.get(variant, variant)
+            name = f"{base.strip()} ({variant})"
+        return WIKI_PORTRAIT_BASE + quote(f"Portrait {name}.png", safe="")
+
+    def cdn_sprite(self, student: dict) -> str:
+        """SchaleDB CDN full-body sprite URL (fallback, keyed by ID)."""
         return f"{PORTRAIT_CDN}/student/portrait/{student['Id']}.webp"
 
 

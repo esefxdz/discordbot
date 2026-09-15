@@ -48,25 +48,23 @@ FOOTER_FONT = _get_font(18, bold=False)
 # ── Image fetching ─────────────────────────────────────────────────────────
 
 async def _fetch_portrait(session: aiohttp.ClientSession, student: dict) -> Optional[Image.Image]:
-    """Download a student's full-body portrait and crop it to the card area.
+    """Download a student's portrait (wiki bust art first, full sprite fallback)."""
+    for url in (db.cdn_portrait(student), db.cdn_sprite(student)):
+        try:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.read()
+                    img = Image.open(io.BytesIO(data)).convert("RGBA")
+                    # Full-body art is tall; crop the upper portion to fit the card.
+                    p_w, p_h = img.size
+                    crop_h = int(p_w * 1.20)
+                    if crop_h < p_h:
+                        img = img.crop((0, 0, p_w, crop_h))
+                    return img
+        except Exception:
+            log.debug("portrait fetch failed via %s", url)
 
-    Portraits come from the SchaleDB image CDN, keyed by student ID.
-    """
-    url = db.cdn_portrait(student)
-    try:
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-            if resp.status == 200:
-                data = await resp.read()
-                img = Image.open(io.BytesIO(data)).convert("RGBA")
-                # Full-body art; crop the upper portion to fit the card.
-                p_w, p_h = img.size
-                crop_h = int(p_w * 1.20)
-                if crop_h < p_h:
-                    img = img.crop((0, 0, p_w, crop_h))
-                return img
-    except Exception:
-        log.exception("Failed to fetch portrait for %s", student["Name"])
-
+    log.warning("no portrait for %s", student["Name"])
     return None
 
 
