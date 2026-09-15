@@ -178,27 +178,8 @@ class TelegramForwarder:
             return None
 
     def _forward_line(self, message) -> str:
-        """Note where a forwarded message originally came from."""
-        try:
-            origin = getattr(message, "forward_origin", None)
-            source = None
-            if origin is not None:
-                otype = getattr(origin, "type", "")
-                if otype == "user" and getattr(origin, "sender_user", None):
-                    user = origin.sender_user
-                    source = (user.first_name or "") + (
-                        f" {user.last_name}" if user.last_name else "")
-                elif otype == "hidden_user":
-                    source = getattr(origin, "sender_user_name", None)
-                elif otype == "chat" and getattr(origin, "sender_chat", None):
-                    source = origin.sender_chat.title
-                elif otype == "channel" and getattr(origin, "chat", None):
-                    source = origin.chat.title
-            if not source:
-                return ""
-            return f"-# ↪ forwarded from {entities.escape_discord(source.strip())}\n"
-        except Exception:
-            return ""
+        """DEPRECATED: forwarded-origin note removed by request."""
+        return ""
 
     # ── rendering ───────────────────────────────────────────────────────────
 
@@ -379,7 +360,7 @@ class TelegramForwarder:
             if rendered:
                 body_parts.append(rendered)
 
-        prefix = self._forward_line(lead) + await self._reply_line(lead, route)
+        prefix = await self._reply_line(lead, route)
         content = prefix + "\n".join(body_parts + notes).strip()
 
         if not content.strip() and not files:

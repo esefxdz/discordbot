@@ -201,11 +201,6 @@
   ],
   "Classical": [
     {
-      "name": "Classical California",
-      "desc": "",
-      "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/KDFCFMAAC.aac"
-    },
-    {
       "name": "Linn Classical",
       "desc": "audiophile classical",
       "url": "http://radio.linn.co.uk:8004/stream"
