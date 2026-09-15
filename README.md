@@ -5,9 +5,9 @@ it started as a simple music bot and became a massive mess of features i actuall
 
 ## features
 
-- **ai** — uses deepseek v4 (flash/pro). full vision support (well... vision is a little broken rn), continuous memory summarization (so it doesn't forget context), per-channel personas (yuuka/rem), and native deepseek-reasoner thinking toggles. doesn't break character.
-- **bridges** — two-way telegram <-> discord message forwarding. also pulls twitter/x leaks via rss and dumps them into a channel.d
-- **media & music** — yt-dlp + ffmpeg based music playback. also has commands for random ffmpeg media conversions.
+- **ai** — uses deepseek v4 (flash/pro). text-only (no image/vision input), continuous memory summarization (so it doesn't forget context), per-channel personas (yuuka/rem), and native deepseek-reasoner thinking toggles. doesn't break character.
+- **bridges** — two-way telegram <-> discord message forwarding. twitter/x leaks via rss is implemented but currently disabled (Nitter RSS instances are dead).
+- **media & music** — lavalink + wavelink music playback (youtube search + http/icecast radio streams). also has ffmpeg media conversion commands (!togif, !caption, !reverse, !speed, !tomp4, !tomp3, !toopus).
 - **sysinfo** — live monitoring of my laptop's cpu, ram, temps (lm-sensors), top processes, and fastfetch.
 - **utilities** — live currency conversion, steam stat tracking (strinova player counts).
 - **calendar** — firestore-backed event booking via modal. autoconverts local times to UTC using a country list, feeds a web calendar frontend.
@@ -19,10 +19,9 @@ it started as a simple music bot and became a massive mess of features i actuall
 
 - python + `discord.py`
 - deepseek api for the ai stuff
-- yt-dlp + ffmpeg for audio
+- wavelink + lavalink (java) for music
 - psutil + lm-sensors for hardware stats
-- hosted on an acer nitro AN515-51 running arch linux
-- runs as a systemd service, updated via git pull over ssh
+- runs as systemd services: `discordbot` and `lavalink`
 
 ## commands
 

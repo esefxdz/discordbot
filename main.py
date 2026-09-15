@@ -48,7 +48,7 @@ async def main():
         await bot.load_extension('cogs.sysinfo')
         await bot.load_extension('music.music_wrapper')
         await bot.load_extension('cogs.statchannel')
-        # await bot.load_extension('cogs.ffmpeg_things')  # will fix soon tm
+        await bot.load_extension('cogs.ffmpeg_things')
         await bot.load_extension('cogs.roles')
         await bot.load_extension('cogs.gitpull')
         await bot.load_extension('cogs.currency_converter')

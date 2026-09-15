@@ -14,7 +14,6 @@ icy_metadata_radios.md
 __pycache__/
 ssh_update.py
 ssh_*.py
-blue_archive/ba_students.json
 _get_id.py
 AGENTS.md
 firebase-service-account.json
