@@ -1,0 +1,29 @@
+# yuuka discord bot — runtime dependencies
+# Verified against Python 3.12 (local reference env).
+
+# Discord
+discord.py==2.7.1
+wavelink==3.5.2          # music via Lavalink
+
+# HTTP / async
+aiohttp==3.14.1
+httpx==0.28.1            # referenced in main.py; also openai's transport
+
+# AI (DeepSeek via the OpenAI-compatible client)
+openai==2.44.0
+
+# Media
+Pillow==12.1.0
+lottie                   # optional: animated .tgs stickers (graceful fallback)
+
+# Telegram bridge
+python-telegram-bot==22.8
+
+# Firebase / Firestore
+google-cloud-firestore>=2.0.0   # AsyncClient
+
+# Utilities
+python-dotenv==1.2.2
+feedparser==6.0.12
+psutil==7.2.2
+dateparser               # timestamp_friends / tz_data
