@@ -1,7 +1,7 @@
 # yuuka
 
-personal discord bot running on my arch linux laptop. named after hayase yuuka. 
-it started as a simple music bot and became a massive mess of features i actually use.
+personal discord bot running on my debian laptop. named after hayase yuuka. 
+it started as a simple music bot and became a massive mess of features i sometimes use.
 
 ## features
 
