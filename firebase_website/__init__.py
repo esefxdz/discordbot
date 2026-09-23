@@ -32,4 +32,4 @@ async def setup(bot: commands.Bot) -> None:
 async def teardown(bot: commands.Bot) -> None:
     global _sync
     if _sync is not None:
-        _sync.stop()
+        await _sync.stop()
