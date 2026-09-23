@@ -251,6 +251,13 @@ class Inventory(commands.Cog):
         view = InventoryView(uid, ctx.author.id)
         await ctx.reply(embed=await view._build_dashboard(), view=view)
 
+    @commands.command(name="eligma")
+    async def eligma(self, ctx: commands.Context) -> None:
+        """Show your Eligma balance (advertised in !gacha help)."""
+        view = InventoryView(ctx.author.id, ctx.author.id)
+        view.stop()  # only used to build the embed, no buttons attached
+        await ctx.reply(embed=await view._build_eligma_page())
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Inventory(bot))

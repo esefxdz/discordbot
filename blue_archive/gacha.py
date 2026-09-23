@@ -4,6 +4,7 @@
 import asyncio
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -15,10 +16,12 @@ from .data import (
     db,
     fetch_banners,
     format_banner_embed,
+    banner_unavailable_reason,
     roll_rarity,
     get_rates_for_banner,
 )
 from .gacha_renderer import render_pull
+from .health import collect_health, OK, INFO
 from .constants import SPARK_TARGET, BANNER_FILE, DEFAULT_RATES, PULL10_RATES, GACHA_ANIM_PATH, GACHA_ANIM_DURATION
 
 log = logging.getLogger(__name__)
@@ -69,6 +72,10 @@ class BlueArchiveGacha(commands.Cog):
         self.bot = bot
         self._banner_cache: dict = {"current": [], "upcoming": [], "ended": []}
         self._cache_ready = asyncio.Event()
+        # Refresh bookkeeping, reported by !gacha health
+        self._last_refresh_at: Optional[float] = None
+        self._last_refresh_ok: Optional[bool] = None
+        self._last_good_at: Optional[float] = None
 
     # ── Lifecycle ───────────────────────────────────────────────────────
 
@@ -87,14 +94,17 @@ class BlueArchiveGacha(commands.Cog):
         """Refresh banners, then merge any new students they might feature."""
         try:
             banners = await fetch_banners()
+            self._last_refresh_ok = banners is not None
             if banners is None:
                 log.warning("Banner refresh failed; keeping previous banner data")
             else:
                 self._banner_cache = banners
+                self._last_good_at = time.time()
             await db.merge_ennead(self._banner_cache)
         except Exception:
             log.exception("Banner refresh failed")
         finally:
+            self._last_refresh_at = time.time()
             self._cache_ready.set()
 
     async def _periodic_refresh(self) -> None:
@@ -167,7 +177,8 @@ class BlueArchiveGacha(commands.Cog):
                 "`!gacha` — list current banners\n"
                 "`!gacha pick <n>` — select banner #n\n"
                 "`!gacha pick regular` — permanent pool\n"
-                "`!gacha info` — your status & spark"
+                "`!gacha info` — your status & spark\n"
+                "`!gacha health` — check everything is working"
             ),
             inline=False,
         )
@@ -229,6 +240,10 @@ class BlueArchiveGacha(commands.Cog):
             return
 
         banner = banners[idx]
+        reason = banner_unavailable_reason(banner)
+        if reason:
+            await ctx.reply(reason)
+            return
         rateups = ", ".join(banner.get("rateups", [])) or "Standard Pool"
         gtype = banner.get("gachaType", "PickupGacha")
 
@@ -277,6 +292,13 @@ class BlueArchiveGacha(commands.Cog):
             if not banner:
                 await ctx.reply(
                     "Your selected banner has ended or is unavailable right now.\n"
+                    "Pick another with `!gacha pick <n>` (see `!gacha`) or `!gacha pick regular`."
+                )
+                return
+            reason = banner_unavailable_reason(banner)
+            if reason:
+                await ctx.reply(
+                    f"{reason}\n"
                     "Pick another with `!gacha pick <n>` (see `!gacha`) or `!gacha pick regular`."
                 )
                 return
@@ -420,6 +442,10 @@ class BlueArchiveGacha(commands.Cog):
                 "Your selected banner has ended or is unavailable right now, so it can't be sparked."
             )
             return
+        reason = banner_unavailable_reason(banner)
+        if reason:
+            await ctx.reply(reason)
+            return
         rateups = [n.lower() for n in banner.get("rateups", [])]
         if student["Name"].lower() not in db.resolve_rateups(rateups):
             rateup_str = ", ".join(banner.get("rateups", []))
@@ -444,6 +470,30 @@ class BlueArchiveGacha(commands.Cog):
             f"({student['StarGrade']}*, {student.get('School', 'Unknown')})!\n"
             f"Remaining Recruitment Points: {remaining}"
         )
+
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    @gacha.command(name="health")
+    async def gacha_health(self, ctx: commands.Context) -> None:
+        """Run live checks on everything a pull depends on."""
+        async with ctx.typing():
+            rows = await collect_health(self, ctx.author.id, await _get_banner_id(ctx.author.id))
+
+        bad = [r for r in rows if r[0] not in (OK, INFO)]
+        embed = discord.Embed(
+            title="Gacha Health — all checks passed" if not bad else f"Gacha Health — {len(bad)} issue(s)",
+            color=0x57F287 if not bad else 0xED4245,
+            timestamp=discord.utils.utcnow(),
+        )
+        sections: dict[str, list[str]] = {}
+        for status, section, text in rows:
+            sections.setdefault(section, []).append(f"{status} {text}")
+        for section, lines in sections.items():
+            value = "\n".join(lines)
+            if len(value) > 1024:
+                value = value[:1020] + " …"
+            embed.add_field(name=section, value=value, inline=False)
+        embed.set_footer(text="Every line was checked just now")
+        await ctx.reply(embed=embed)
 
     @gacha.command(name="info")
     async def gacha_info(self, ctx: commands.Context) -> None:

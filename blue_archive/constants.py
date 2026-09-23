@@ -89,4 +89,6 @@ FILTER_LABELS: dict[str, int | None] = {"All": None, "3★": 3, "2★": 2, "1★
 FONT_PATHS = [
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
     "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Debian (fonts-dejavu-core)
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 ]

@@ -412,6 +412,22 @@ async def fetch_banners(session: Optional[aiohttp.ClientSession] = None) -> Opti
             await session.close()
 
 
+def banner_unavailable_reason(banner: dict) -> Optional[str]:
+    """Return why a banner can't be pulled right now, or None if it's live.
+
+    Banners without timestamps are treated as permanent.
+    """
+    now_ms = datetime.now(timezone.utc).timestamp() * 1000
+    started = banner.get("startedAt", 0)
+    ended = banner.get("endedAt", 0)
+    if started and now_ms < started:
+        start_dt = datetime.fromtimestamp(started / 1000, tz=timezone.utc)
+        return f"This banner hasn't started yet (starts {start_dt.strftime('%b %d')})."
+    if ended and now_ms >= ended:
+        return "This banner has ended."
+    return None
+
+
 def format_banner_embed(banner: dict, index: int) -> str:
     """Format a single banner as an embed field value string."""
     gtype = banner.get("gachaType", "PickupGacha")
@@ -427,8 +443,9 @@ def format_banner_embed(banner: dict, index: int) -> str:
         dates = "Permanent"
 
     is_fes = " [FES - 6% 3*!]" if gtype == "FesGacha" else ""
+    upcoming = " [UPCOMING]" if started and started > datetime.now(timezone.utc).timestamp() * 1000 else ""
     return (
-        f"**#{index + 1} — {gtype}{is_fes}**\n"
+        f"**#{index + 1} — {gtype}{is_fes}{upcoming}**\n"
         f"Rate-up: {rateups}\n"
         f"{dates}"
     )
