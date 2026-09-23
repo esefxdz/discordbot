@@ -34,6 +34,8 @@ async def main() -> None:
         chars = await fetch_json(session, CHARACTER_API)
         banners = await fetch_banners(session)
 
+    if banners is None:
+        raise RuntimeError("banner API fetch failed")
     if not chars:
         raise RuntimeError("ennead character API returned an empty list")
 

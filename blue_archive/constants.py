@@ -38,6 +38,8 @@ PULL10_RATES = (0.03, 0.97, 0.0)
 BANNER_RATES: dict[str, tuple[float, float, float]] = {
     "FesGacha": (0.06, 0.185, 0.755),
 }
+# Each rate-up 3★ student has a flat 0.7% per-pull rate (all banner types)
+RATEUP_RATE = 0.007
 
 # ── Spark & Eligma ──────────────────────────────────────────────────────────
 SPARK_TARGET = 200

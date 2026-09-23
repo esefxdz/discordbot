@@ -20,6 +20,7 @@ from .constants import (
     WIKI_VARIANT_MAP,
     BANNER_RATES,
     DEFAULT_RATES,
+    RATEUP_RATE,
     PULL10_RATES,
 )
 
@@ -204,15 +205,29 @@ class StudentDB:
     def get(self, student_id: int) -> Optional[dict]:
         return self.by_id.get(student_id)
 
-    def get_by_name(self, name: str) -> Optional[dict]:
+    def get_by_name(self, name: str, strict: bool = False) -> Optional[dict]:
         """Resolve a student by name with fuzzy fallback.
 
-        Tries: exact match → strip variant suffix → substring match.
-        Handles banner-API names like "Maki (Camp)" when only "Maki" exists.
+        Tries: exact match → variant alias → strip variant suffix → substring match.
+        With strict=True only exact match and variant alias are tried, so an
+        unknown costume never resolves to its base student (used for rate-ups).
         """
         key = name.lower().strip()
         if key in self.by_name:
             return self.by_name[key]
+
+        # API variant names can differ from SchaleDB ("Hoshino (Armed)" → "Hoshino (Battle)")
+        if "(" in key:
+            base, variant = key.split("(", 1)
+            variant = variant.rstrip(")").strip()
+            for api_v, wiki_v in WIKI_VARIANT_MAP.items():
+                if variant == api_v.lower():
+                    alias = f"{base.strip()} ({wiki_v.lower()})"
+                    if alias in self.by_name:
+                        return self.by_name[alias]
+
+        if strict:
+            return None
 
         # "Maki (Camp)" → try "Maki"
         if "(" in key:
@@ -226,6 +241,21 @@ class StudentDB:
                 return student
 
         return None
+
+    def resolve_rateups(self, rateup_names: list[str]) -> set[str]:
+        """Strictly resolve banner rate-up names to roster names (lowercased).
+
+        Returns names rather than IDs because some students have several
+        entries under one name (e.g. both forms of Hoshino (Battle)).
+        """
+        resolved: set[str] = set()
+        for rn in rateup_names:
+            s = self.get_by_name(rn, strict=True)
+            if s:
+                resolved.add(s["Name"].lower())
+            else:
+                log.warning("Rate-up %r is not in the roster; it cannot be pulled", rn)
+        return resolved
 
     def build_pool(self, banner: Optional[dict]) -> dict[int, list[dict]]:
         """Build the pullable character pool for a specific banner.
@@ -258,21 +288,27 @@ class StudentDB:
 
         # Add rate-up students (they might already be in the pool, but we need
         # to identify them for weighted selection later)
-        for name in rateup_names:
-            s = self.get_by_name(name)
-            if s and (s.get("IsLimited") or 0) < 2:
+        rateup_keys = self.resolve_rateups(rateup_names)
+        for s in self.students:
+            if s["Name"].lower() in rateup_keys and (s.get("IsLimited") or 0) < 2:
                 r = s["StarGrade"]
                 if r in pool and s not in pool[r]:
                     pool[r].append(s)
 
         return pool
 
-    def weighted_pick(self, pool: list[dict], rateup_names: list[str], rarity: int) -> dict:
-        """Pick a random student from a rarity pool with rate-up weighting.
+    def weighted_pick(
+        self,
+        pool: list[dict],
+        rateup_names: list[str],
+        rarity: int,
+        three_star_rate: float = DEFAULT_RATES[0],
+    ) -> dict:
+        """Pick a random student from a rarity pool with rate-up odds.
 
-        For 3★: rate-up characters get 3x higher weight than standard ones,
-        producing roughly the same rate-up frequency as the real game's 0.7%
-        per rate-up out of the 3% total.
+        For 3★: each rate-up student gets a flat RATEUP_RATE (0.7%) per pull,
+        like the real game, so on a 3% banner one rate-up is ~23% of 3★ pulls.
+        The remaining 3★ share is split evenly over the rest of the pool.
         For 1-2★: uniform random (rate-ups don't affect lower rarities).
         """
         if not pool:
@@ -281,20 +317,17 @@ class StudentDB:
             return random.choice(pullable or self.students)
 
         if rarity == 3 and rateup_names:
-            # Weighted: rate-up chars get 3x weight each vs normal chars.
-            # Use get_by_name so "Hoshino (Armed)" in API matches "Hoshino" in DB.
-            rateup_ids = set()
-            for rn in rateup_names:
-                rs = self.get_by_name(rn)
-                if rs:
-                    rateup_ids.add(rs["Id"])
-            weights = []
-            for s in pool:
-                if s["Id"] in rateup_ids:
-                    weights.append(3.0)
-                else:
-                    weights.append(1.0)
-            return random.choices(pool, weights=weights, k=1)[0]
+            # Match by name so "Hoshino (Armed)" in API covers every
+            # "Hoshino (Battle)" entry in DB.
+            rateup_keys = self.resolve_rateups(rateup_names)
+            rateups = [s for s in pool if s["Name"].lower() in rateup_keys]
+            others = [s for s in pool if s["Name"].lower() not in rateup_keys]
+            if rateups:
+                n_rateups = len({s["Name"].lower() for s in rateups})
+                share = min(1.0, RATEUP_RATE * n_rateups / three_star_rate)
+                if not others or random.random() < share:
+                    return random.choice(rateups)
+                return random.choice(others)
 
         return random.choice(pool)
 
@@ -349,10 +382,11 @@ def get_rates_for_banner(banner: dict) -> tuple[float, float, float]:
 
 # --- Banner fetching ---------------------------------------------------------
 
-async def fetch_banners(session: Optional[aiohttp.ClientSession] = None) -> dict:
+async def fetch_banners(session: Optional[aiohttp.ClientSession] = None) -> Optional[dict]:
     """Fetch live banner data from the BlueArchiveAPI.
 
-    Returns {"current": [...], "upcoming": [...], "ended": [...]}.
+    Returns {"current": [...], "upcoming": [...], "ended": [...]}, or None if
+    the fetch failed (so callers can keep their last good data).
     Each banner has: id, gachaType, rateups (list of names), startedAt, endedAt.
     """
     close_session = session is None
@@ -369,10 +403,10 @@ async def fetch_banners(session: Optional[aiohttp.ClientSession] = None) -> dict
                 return data
             else:
                 log.warning("Banner API returned status %d", resp.status)
-                return {"current": [], "upcoming": [], "ended": []}
+                return None
     except Exception:
         log.exception("Failed to fetch banners from API")
-        return {"current": [], "upcoming": [], "ended": []}
+        return None
     finally:
         if close_session:
             await session.close()

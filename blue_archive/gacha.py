@@ -77,7 +77,6 @@ class BlueArchiveGacha(commands.Cog):
         await asyncio.to_thread(db.load)
         await gacha_db.init_db()
         await self._refresh_banners()
-        await db.merge_ennead(self._banner_cache)
         self._refresh_task = asyncio.create_task(self._periodic_refresh())
 
     async def cog_unload(self) -> None:
@@ -85,8 +84,14 @@ class BlueArchiveGacha(commands.Cog):
             self._refresh_task.cancel()
 
     async def _refresh_banners(self) -> None:
+        """Refresh banners, then merge any new students they might feature."""
         try:
-            self._banner_cache = await fetch_banners()
+            banners = await fetch_banners()
+            if banners is None:
+                log.warning("Banner refresh failed; keeping previous banner data")
+            else:
+                self._banner_cache = banners
+            await db.merge_ennead(self._banner_cache)
         except Exception:
             log.exception("Banner refresh failed")
         finally:
@@ -269,11 +274,16 @@ class BlueArchiveGacha(commands.Cog):
                 if str(b.get("id")) == banner_id:
                     banner = b
                     break
-            if banner:
-                rateups = ", ".join(banner.get("rateups", [])) or "Standard Pool"
-                gtype = banner.get("gachaType", "PickupGacha")
-                banner_name = f"{gtype} — {rateups}"
-                rates = get_rates_for_banner(banner)
+            if not banner:
+                await ctx.reply(
+                    "Your selected banner has ended or is unavailable right now.\n"
+                    "Pick another with `!gacha pick <n>` (see `!gacha`) or `!gacha pick regular`."
+                )
+                return
+            rateups = ", ".join(banner.get("rateups", [])) or "Standard Pool"
+            gtype = banner.get("gachaType", "PickupGacha")
+            banner_name = f"{gtype} — {rateups}"
+            rates = get_rates_for_banner(banner)
 
         # "Opening envelope" teaser — animation GIF, or text fallback
         if GACHA_ANIM_PATH.exists():
@@ -306,7 +316,7 @@ class BlueArchiveGacha(commands.Cog):
             rarity = roll_rarity(r)
             rarity_pool = pool.get(rarity, [])
             if rarity_pool:
-                student = db.weighted_pick(rarity_pool, rateup_names, rarity)
+                student = db.weighted_pick(rarity_pool, rateup_names, rarity, rates[0])
             else:
                 student = db.random_by_rarity(rarity)  # fallback
 
@@ -405,18 +415,19 @@ class BlueArchiveGacha(commands.Cog):
             if str(b.get("id")) == banner_id:
                 banner = b
                 break
-        if banner:
-            rateups = [n.lower() for n in banner.get("rateups", [])]
-            matched = any(
-                db.get_by_name(rn) is student for rn in rateups
+        if not banner:
+            await ctx.reply(
+                "Your selected banner has ended or is unavailable right now, so it can't be sparked."
             )
-            if not matched:
-                rateup_str = ", ".join(banner.get("rateups", []))
-                await ctx.reply(
-                    f"**{student['Name']}** is not a rate-up on this banner.\n"
-                    f"Rate-ups: {rateup_str}"
-                )
-                return
+            return
+        rateups = [n.lower() for n in banner.get("rateups", [])]
+        if student["Name"].lower() not in db.resolve_rateups(rateups):
+            rateup_str = ", ".join(banner.get("rateups", []))
+            await ctx.reply(
+                f"**{student['Name']}** is not a rate-up on this banner.\n"
+                f"Rate-ups: {rateup_str}"
+            )
+            return
 
         # Atomic claim: check points, check ownership, add student, deduct points
         success, msg = await gacha_db.spark_claim(user_id, banner_id, student["Id"], student["StarGrade"])
