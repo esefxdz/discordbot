@@ -55,8 +55,7 @@ class SysInfoSync:
         self._task.cancel()
         self._task = None
         log.info("SysInfo → Firestore sync stopped")
-        # Clean shutdown → flip the website dot to offline. Crashes can't do
-        # this; the website also treats a stale `updatedAt` as offline.
+        # turns the dot on the website red
         try:
             await get_db().collection("sysinfo").document("server").set(
                 {"online": False, "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)

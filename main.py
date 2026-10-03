@@ -42,6 +42,7 @@ async def main():
     async with bot:
         await bot.load_extension('tgbridge')
         await bot.load_extension('cogs.general')
+        await bot.load_extension('cogs.help')
         await bot.load_extension('cogs.chance')
         await bot.load_extension('cogs.gifs')
         await bot.load_extension('cogs.copypasta')
