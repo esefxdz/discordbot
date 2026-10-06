@@ -3,6 +3,8 @@ import aiohttp
 import feedparser
 from discord.ext import commands
 
+from twitterbridge.rss import embed_link
+
 REQUEST_TIMEOUT = 15
 
 
@@ -50,10 +52,7 @@ class TwitterLeaks(commands.Cog):
 
         response = "**Latest 5 Leaks:**\n"
         for entry in entries[:5]:
-            link = entry.get('link', '')
-            if 'nitter.net' in link:
-                link = link.replace('nitter.net', 'twitter.com').replace('#m', '')
-            response += f'\n{link}\n'
+            response += f"\n{embed_link(entry.get('link', ''))}\n"
 
         await ctx.reply(response[:2000])
 

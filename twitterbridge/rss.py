@@ -1,37 +1,58 @@
 # Twitter/X RSS-to-Discord forwarding (feed: self-hosted RSSHub, see esefrss).
-# Polls RSS endpoints on a timer, auto-rotates through fallback URLs
-# when an instance returns empty or fails, and posts new entries
-# to a Discord webhook.
+# One poller fetches the feed and fans new entries out to every webhook.
+# Each webhook remembers which tweets it has already posted, so a reordered,
+# partial or briefly broken feed never skips or reposts anything.
 import os
+import json
+import time
 import random
 import asyncio
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from urllib.parse import urlsplit, urlunsplit
 import aiohttp
 import feedparser
 
 logger = logging.getLogger(__name__)
 
 # The feed comes from RSSHub on yuuka using a real X account's cookie, so
-# polls are jittered and slower at night to avoid a robotic 24/7 pattern.
-POLL_INTERVAL = (240, 480)         # daytime: random 4-8 minutes
-NIGHT_POLL_INTERVAL = (1200, 2100) # night: random 20-35 minutes
-NIGHT_HOURS = range(1, 6)          # 01:00-05:59 Istanbul; the account posts ~06:00-08:00
+# polls are jittered and much slower at night to avoid a robotic 24/7 pattern.
+POLL_INTERVAL = (240, 480)          # daytime: random 4-8 minutes
+NIGHT_POLL_INTERVAL = (3600, 7200)  # night: random 1-2 hours
+NIGHT_HOURS = range(1, 6)           # 01:00-05:59 Istanbul; the account posts ~06:00-08:00
 LOCAL_TZ = ZoneInfo('Europe/Istanbul')
-REQUEST_TIMEOUT = 30         # seconds per HTTP call
-MAX_EMPTY_STRIKES = 3        # consecutive empty polls before rotating URL
+REQUEST_TIMEOUT = 30                # seconds per HTTP call
+SEEN_LIMIT = 500                    # remembered guids per webhook (the feed holds 20)
+POST_GAP = 1.5                      # seconds between webhook posts
+POST_ATTEMPTS = 3
+ALERT_AFTER = 90 * 60               # feed broken this long -> DM the owner
+
+EMBED_HOST = 'fxtwitter.com'        # proper Discord embeds; X never sees these
+
+
+def embed_link(link: str) -> str:
+    """Point a tweet link at fxtwitter so Discord shows a real embed."""
+    parts = urlsplit(link.replace('#m', ''))
+    if parts.netloc in ('x.com', 'twitter.com', 'www.twitter.com', 'nitter.net'):
+        parts = parts._replace(netloc=EMBED_HOST)
+    return urlunsplit(parts)
+
+
+def _guid(entry) -> str:
+    return entry.get('id') or entry.get('link', '')
 
 
 class TwitterRSSForwarder:
-    """Polls a Twitter RSS feed and forwards new items to a Discord webhook.
+    """Polls the Twitter RSS feed and forwards new items to Discord webhooks.
 
-    Reads TWITTER_RSS_URL and optional TWITTER_RSS_FALLBACKS from the
-    environment.  Falls back through URLs when the current one fails or
-    returns empty entries.
+    Reads TWITTER_RSS_URL and optional comma-separated TWITTER_RSS_FALLBACKS.
+    `webhooks` maps a name (used in the state file) to a webhook URL.
+    `alert` is an optional coroutine taking a message, called when the feed
+    has been broken for ALERT_AFTER and again when it recovers.
     """
 
-    def __init__(self, webhook_url: str, guid_file: str = 'data/last_tweet.txt'):
+    def __init__(self, webhooks: dict[str, str], state_file: str = 'data/twitter_seen.json', alert=None):
         primary = os.getenv('TWITTER_RSS_URL', '')
         fallbacks_raw = os.getenv('TWITTER_RSS_FALLBACKS', '')
 
@@ -43,15 +64,16 @@ class TwitterRSSForwarder:
             raise ValueError('TWITTER_RSS_URL is not set')
 
         self.rss_urls = urls
-        self.webhook_url = webhook_url
-        self.guid_file = guid_file
+        self.webhooks = {name: url for name, url in webhooks.items() if url}
+        self.state_file = state_file
+        self.alert = alert
 
-        self.last_guid: str | None = None
+        self.seen: dict[str, list[str]] = {}
         self._running = False
         self._session: aiohttp.ClientSession | None = None
 
-        self._current_idx = 0
-        self._empty_strikes = 0
+        self._bad_since: float | None = None
+        self._alerted = False
 
     # ------------------------------------------------------------------
     # Public lifecycle
@@ -59,16 +81,13 @@ class TwitterRSSForwarder:
 
     async def start(self):
         self._running = True
-        self._load_last_guid()
+        self._load_state()
 
         timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)
-        self._session = aiohttp.ClientSession(
-            timeout=timeout,
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
-        )
+        self._session = aiohttp.ClientSession(timeout=timeout)
 
-        logger.info('twitter rss forwarder started — %d URLs, current: %s',
-                    len(self.rss_urls), self.rss_urls[self._current_idx])
+        logger.info('twitter rss forwarder started — %s -> %s',
+                    self.rss_urls[0], ', '.join(self.webhooks) or 'no webhooks')
 
         while self._running:
             try:
@@ -105,143 +124,152 @@ class TwitterRSSForwarder:
     # ------------------------------------------------------------------
 
     async def _poll_cycle(self):
-        start_idx = self._current_idx
-        errors: list[str] = []
+        entries, problem = await self._fetch_any()
+        if not entries:
+            await self._note_bad(problem or 'feed returned no items')
+            return
+        await self._note_good()
 
-        for offset in range(len(self.rss_urls)):
-            idx = (start_idx + offset) % len(self.rss_urls)
-            url = self.rss_urls[idx]
+        for name, webhook in self.webhooks.items():
+            await self._forward(name, webhook, entries)
 
+    async def _fetch_any(self) -> tuple[list[dict], str | None]:
+        problems = []
+        for url in self.rss_urls:
             try:
-                entries = await self._fetch_feed(url)
+                async with self._session.get(url) as resp:
+                    resp.raise_for_status()
+                    text = await resp.text()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                errors.append(f'{url}: {exc}')
-                logger.warning('twitter rss url failed: %s — %s', url, exc)
+                problems.append(f'{url}: {exc}')
                 continue
 
-            if not entries:
-                logger.debug('twitter rss url returned empty: %s', url)
-                self._empty_strikes += 1
-                if self._empty_strikes >= MAX_EMPTY_STRIKES:
-                    logger.warning('twitter rss %d consecutive empty polls — rotating away from %s',
-                                   self._empty_strikes, url)
-                    self._rotate()
-                else:
-                    logger.debug('twitter rss empty strike %d/%d on %s',
-                                 self._empty_strikes, MAX_EMPTY_STRIKES, url)
-                return
+            feed = feedparser.parse(text)
+            if feed.entries:
+                return feed.entries, None
+            problems.append(f'{url}: no items' + (f' ({feed.bozo_exception})' if feed.bozo else ''))
+        return [], '; '.join(problems)
 
-            self._empty_strikes = 0
-            if idx != self._current_idx:
-                logger.info('twitter rss switched to %s', url)
-                self._current_idx = idx
+    async def _forward(self, name: str, webhook: str, entries: list[dict]):
+        ids = [_guid(e) for e in entries]
+        seen = self.seen.get(name)
 
-            await self._process_entries(entries)
+        if seen is None:
+            # first run for this webhook: remember the current feed, post nothing
+            self.seen[name] = ids[::-1]
+            self._save_state()
+            logger.info('twitter rss [%s] first run — remembered %d tweets', name, len(ids))
             return
 
-        logger.error('twitter rss all %d URLs failed: %s', len(self.rss_urls), '; '.join(errors))
-        self._rotate()
-
-    async def _fetch_feed(self, url: str) -> list[dict] | None:
-        if self._session is None:
-            raise RuntimeError('start() must be called before fetching')
-
-        async with self._session.get(url) as resp:
-            resp.raise_for_status()
-            text = await resp.text()
-
-        feed = feedparser.parse(text)
-
-        if feed.bozo and not feed.entries:
-            logger.warning('twitter rss parse error from %s: %s', url, feed.bozo_exception)
-            return None
-
-        return feed.entries
-
-    # ------------------------------------------------------------------
-    # Entry processing
-    # ------------------------------------------------------------------
-
-    async def _process_entries(self, entries: list[dict]):
-        if self.last_guid is None:
-            self.last_guid = entries[0].get('id', '')
-            self._save_last_guid()
-            logger.info('twitter rss first run — recorded guid: %s', self.last_guid)
+        seen_set = set(seen)
+        known = [i for i, g in enumerate(ids) if g in seen_set]
+        if not known:
+            # nothing in the feed is familiar (long outage or a feed change):
+            # re-baseline instead of flooding the channel with the whole page
+            logger.warning('twitter rss [%s] no known tweets in feed — re-baselining without posting', name)
+            seen.extend(ids[::-1])
+            del seen[:-SEEN_LIMIT]
+            self._save_state()
             return
 
-        # Find the index of the last known GUID in the current feed.
-        last_idx = None
-        for i, entry in enumerate(entries):
-            if entry.get('id', '') == self.last_guid:
-                last_idx = i
-                break
+        # Unseen entries above the lowest known one are new (the feed isn't strictly
+        # chronological, so they can sit below newer known tweets). Unseen entries
+        # below every known one are old tweets that slid in when something above
+        # was deleted, so they are only remembered.
+        lowest_known = known[-1]
+        new = [e for e in entries[:lowest_known] if _guid(e) not in seen_set]
+        tail = [g for g in ids[lowest_known:] if g not in seen_set]
+        if tail:
+            seen.extend(tail)
+            del seen[:-SEEN_LIMIT]
+            self._save_state()
 
-        if last_idx is None:
-            # Stored GUID not in this feed — nitter returned a stale/partial
-            # snapshot.  Update to the newest GUID *without* posting, so we
-            # don't spam the channel with duplicates when the full feed returns.
-            logger.warning(
-                'stored guid %s not found in feed (%d entries) — '
-                'updating to %s without posting',
-                self.last_guid, len(entries), entries[0].get('id', '?'),
-            )
-            self.last_guid = entries[0].get('id', '')
-            self._save_last_guid()
-            return
-
-        new_entries = entries[:last_idx]  # everything newer than last known
-        if not new_entries:
-            return
-
-        for entry in reversed(new_entries):
-            await self._post_to_discord(entry)
-
-        self.last_guid = new_entries[0].get('id', '')
-        self._save_last_guid()
+        for entry in reversed(new):  # oldest first
+            if not await self._post(name, webhook, entry):
+                break  # leave the rest unseen; retried next poll
+            seen.append(_guid(entry))
+            del seen[:-SEEN_LIMIT]
+            self._save_state()
+            await asyncio.sleep(POST_GAP)
 
     # ------------------------------------------------------------------
     # Discord webhook
     # ------------------------------------------------------------------
 
-    async def _post_to_discord(self, entry):
-        link = entry.get('link', '')
-        if 'nitter.net' in link:
-            link = link.replace('nitter.net', 'twitter.com').replace('#m', '')
+    async def _post(self, name: str, webhook: str, entry) -> bool:
+        link = embed_link(entry.get('link', ''))
+        payload = {'username': '@CalabiyauLeaks', 'content': link}
 
-        payload = {
-            'username': '@CalabiyauLeaks',
-            'content': link,
-        }
-
-        async with self._session.post(self.webhook_url, json=payload) as resp:
-            if resp.status not in (200, 204):
-                body = await resp.text()
-                logger.warning('twitter webhook post failed: %s %s', resp.status, body[:200])
-            else:
-                logger.info('twitter rss posted: %s', link)
+        for _ in range(POST_ATTEMPTS):
+            try:
+                async with self._session.post(webhook, json=payload) as resp:
+                    if resp.status in (200, 204):
+                        logger.info('twitter rss [%s] posted: %s', name, link)
+                        return True
+                    if resp.status == 429:
+                        data = await resp.json(content_type=None)
+                        wait = float(data.get('retry_after', 2))
+                        logger.info('twitter rss [%s] rate limited, waiting %.1fs', name, wait)
+                        await asyncio.sleep(min(wait, 60))
+                        continue
+                    body = await resp.text()
+                    logger.warning('twitter rss [%s] webhook post failed: %s %s', name, resp.status, body[:200])
+                    if resp.status < 500:
+                        return False
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning('twitter rss [%s] webhook post error: %s', name, type(exc).__name__)
+            await asyncio.sleep(2)
+        return False
 
     # ------------------------------------------------------------------
-    # Rotation
+    # Outage alerts
     # ------------------------------------------------------------------
 
-    def _rotate(self):
-        self._current_idx = (self._current_idx + 1) % len(self.rss_urls)
-        self._empty_strikes = 0
-        logger.info('twitter rss rotated to URL %d/%d: %s',
-                    self._current_idx + 1, len(self.rss_urls), self.rss_urls[self._current_idx])
+    async def _note_bad(self, problem: str):
+        now = time.monotonic()
+        if self._bad_since is None:
+            self._bad_since = now
+        logger.warning('twitter rss feed problem: %s', problem)
+
+        broken_for = now - self._bad_since
+        if not self._alerted and broken_for >= ALERT_AFTER:
+            self._alerted = True
+            await self._send_alert(
+                f'⚠️ esefrss: the @CalabiyauLeaks feed has been broken for {broken_for / 60:.0f} min '
+                f'({problem[:300]}).\nIf X locked @esefos2: log in on arona, pass the check, then put a fresh '
+                f'auth_token in ~/esefrss/.env and `docker compose up -d --force-recreate` (see esefrss README).'
+            )
+
+    async def _note_good(self):
+        if self._alerted:
+            await self._send_alert('✅ esefrss: the @CalabiyauLeaks feed is working again.')
+        self._bad_since = None
+        self._alerted = False
+
+    async def _send_alert(self, text: str):
+        if self.alert is None:
+            return
+        try:
+            await self.alert(text)
+        except Exception:
+            logger.exception('twitter rss alert failed')
 
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
 
-    def _load_last_guid(self):
-        if os.path.exists(self.guid_file):
-            with open(self.guid_file, 'r') as f:
-                self.last_guid = f.read().strip() or None
+    def _load_state(self):
+        if os.path.exists(self.state_file):
+            with open(self.state_file, 'r') as f:
+                self.seen = {k: list(v) for k, v in json.load(f).items()}
 
-    def _save_last_guid(self):
-        os.makedirs('data', exist_ok=True)
-        with open(self.guid_file, 'w') as f:
-            f.write(self.last_guid or '')
+    def _save_state(self):
+        os.makedirs(os.path.dirname(self.state_file) or '.', exist_ok=True)
+        tmp = self.state_file + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(self.seen, f)
+        os.replace(tmp, self.state_file)

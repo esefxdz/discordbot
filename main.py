@@ -18,23 +18,25 @@ bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 # The Telegram bridge discovers its own routes from credentials.env and
 # starts polling when the extension loads — see tgbridge/config.py.
 
-twitter = TwitterRSSForwarder(
-    webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK'),
-)
+async def alert_owner(text: str):
+    owner = await bot.fetch_user(int(os.getenv('OWNER_ID', '0')))
+    await owner.send(text)
 
-twitter_mao = TwitterRSSForwarder(
-    webhook_url=os.getenv('TWITTER_DISCORD_WEBHOOK_MAO'),
-    guid_file='data/last_tweet_mao.txt',
+# one poller for the @CalabiyauLeaks feed, posting to both servers
+twitter = TwitterRSSForwarder(
+    webhooks={
+        'main': os.getenv('TWITTER_DISCORD_WEBHOOK'),
+        'mao': os.getenv('TWITTER_DISCORD_WEBHOOK_MAO'),
+    },
+    alert=alert_owner,
 )
 
 @bot.event
 async def on_ready():
     print(f'[+] {bot.user} is online!')
-    # on_ready fires again after reconnects; don't start duplicate pollers
+    # on_ready fires again after reconnects; don't start a duplicate poller
     if not twitter._running:
         asyncio.create_task(twitter.start())
-    if not twitter_mao._running:
-        asyncio.create_task(twitter_mao.start())
     # Clear stale global slash commands
     try:
         await bot.tree.sync()
@@ -71,11 +73,8 @@ async def main():
         finally:
             # bot.close() unloads extensions, so tgbridge.teardown stops the
             # Telegram poller and closes its aiohttp session for us
-            pass
             twitter.stop()
-            twitter_mao.stop()
             await twitter.close()
-            await twitter_mao.close()
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('httpx').setLevel(logging.WARNING)
