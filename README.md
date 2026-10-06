@@ -6,7 +6,7 @@ it started as a simple music bot and became a massive mess of features i sometim
 ## features
 
 - **ai** — uses deepseek v4 (flash/pro). text-only (no image/vision input), continuous memory summarization (so it doesn't forget context), per-channel personas (yuuka/rem), and native deepseek-reasoner thinking toggles. doesn't break character.
-- **bridges** — two-way telegram <-> discord message forwarding. twitter/x leaks via rss is implemented but currently disabled (Nitter RSS instances are dead).
+- **bridges** — two-way telegram <-> discord message forwarding. twitter/x leaks: new @CalabiyauLeaks tweets go to two servers as fxtwitter links (`twitterbridge/`), from a self-hosted RSSHub feed on yuuka (esefrss). `!leaks` shows the latest 5. if the feed breaks for 90 min the bot DMs the owner.
 - **media & music** — lavalink + wavelink music playback (youtube search + http/icecast radio streams). also has ffmpeg media conversion slash commands (/togif, /caption, /reverse, /speed, /tomp4, /tomp3, /toopus).
 - **sysinfo** — live monitoring of my laptop's cpu, ram, temps (lm-sensors), top processes, and fastfetch.
 - **utilities** — live currency conversion (/currency), steam stat tracking (strinova player counts).
