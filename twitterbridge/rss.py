@@ -1,16 +1,24 @@
-# Twitter/X RSS-to-Discord forwarding via Nitter RSS feeds.
+# Twitter/X RSS-to-Discord forwarding (feed: self-hosted RSSHub, see esefrss).
 # Polls RSS endpoints on a timer, auto-rotates through fallback URLs
 # when an instance returns empty or fails, and posts new entries
 # to a Discord webhook.
 import os
+import random
 import asyncio
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import aiohttp
 import feedparser
 
 logger = logging.getLogger(__name__)
 
-POLL_INTERVAL = 300          # 5 minutes
+# The feed comes from RSSHub on yuuka using a real X account's cookie, so
+# polls are jittered and slower at night to avoid a robotic 24/7 pattern.
+POLL_INTERVAL = (240, 480)         # daytime: random 4-8 minutes
+NIGHT_POLL_INTERVAL = (1200, 2100) # night: random 20-35 minutes
+NIGHT_HOURS = range(1, 6)          # 01:00-05:59 Istanbul; the account posts ~06:00-08:00
+LOCAL_TZ = ZoneInfo('Europe/Istanbul')
 REQUEST_TIMEOUT = 30         # seconds per HTTP call
 MAX_EMPTY_STRIKES = 3        # consecutive empty polls before rotating URL
 
@@ -72,10 +80,15 @@ class TwitterRSSForwarder:
                 logger.exception('unhandled error in twitter rss poll loop — will retry next cycle')
 
             try:
-                await asyncio.sleep(POLL_INTERVAL)
+                await asyncio.sleep(self._next_delay())
             except asyncio.CancelledError:
                 self._running = False
                 raise
+
+    @staticmethod
+    def _next_delay() -> float:
+        night = datetime.now(LOCAL_TZ).hour in NIGHT_HOURS
+        return random.uniform(*(NIGHT_POLL_INTERVAL if night else POLL_INTERVAL))
 
     def stop(self):
         self._running = False
