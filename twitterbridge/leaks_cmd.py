@@ -3,7 +3,7 @@ import aiohttp
 import feedparser
 from discord.ext import commands
 
-from twitterbridge.rss import embed_link
+from twitterbridge.rss import embed_link, tweet_id
 
 REQUEST_TIMEOUT = 15
 
@@ -51,6 +51,8 @@ class TwitterLeaks(commands.Cog):
             return await ctx.reply(msg[:2000])
 
         response = "**Latest 5 Leaks:**\n"
+        # the feed isn't chronological; status ids are
+        entries = sorted(entries, key=lambda e: tweet_id(e.get('id') or e.get('link', '')) or 0, reverse=True)
         for entry in entries[:5]:
             response += f"\n{embed_link(entry.get('link', ''))}\n"
 

@@ -43,6 +43,14 @@ def _guid(entry) -> str:
     return entry.get('id') or entry.get('link', '')
 
 
+def tweet_id(guid: str) -> int | None:
+    """Status id from a guid. RSSHub uses the timeline entry's own id (a retweet's
+    id, not the original's), so ids grow in the order the account posted them,
+    unlike the feed order and pubDate (the original tweet's date)."""
+    tail = guid.rstrip('/').rsplit('/', 1)[-1]
+    return int(tail) if tail.isdigit() else None
+
+
 class TwitterRSSForwarder:
     """Polls the Twitter RSS feed and forwards new items to Discord webhooks.
 
@@ -164,7 +172,7 @@ class TwitterRSSForwarder:
             return
 
         seen_set = set(seen)
-        known = [i for i, g in enumerate(ids) if g in seen_set]
+        known = [g for g in ids if g in seen_set]
         if not known:
             # nothing in the feed is familiar (long outage or a feed change):
             # re-baseline instead of flooding the channel with the whole page
@@ -174,19 +182,28 @@ class TwitterRSSForwarder:
             self._save_state()
             return
 
-        # Unseen entries above the lowest known one are new (the feed isn't strictly
-        # chronological, so they can sit below newer known tweets). Unseen entries
-        # below every known one are old tweets that slid in when something above
-        # was deleted, so they are only remembered.
-        lowest_known = known[-1]
-        new = [e for e in entries[:lowest_known] if _guid(e) not in seen_set]
-        tail = [g for g in ids[lowest_known:] if g not in seen_set]
-        if tail:
-            seen.extend(tail)
+        # Unseen entries newer than the oldest known one in this feed are new, wherever
+        # the feed puts them. Unseen entries older than every known one are old tweets
+        # that slid in when something was deleted, so they are only remembered.
+        known_ids = [i for i in map(tweet_id, known) if i is not None]
+        oldest_known = min(known_ids) if known_ids else None
+        new, slid_in = [], []
+        for e in entries:
+            g = _guid(e)
+            if g in seen_set:
+                continue
+            tid = tweet_id(g)
+            if tid is not None and oldest_known is not None and tid < oldest_known:
+                slid_in.append(g)
+            else:
+                new.append(e)
+        if slid_in:
+            seen.extend(slid_in)
             del seen[:-SEEN_LIMIT]
             self._save_state()
 
-        for entry in reversed(new):  # oldest first
+        new.sort(key=lambda e: tweet_id(_guid(e)) or 0)
+        for entry in new:  # oldest first
             if not await self._post(name, webhook, entry):
                 break  # leave the rest unseen; retried next poll
             seen.append(_guid(entry))
