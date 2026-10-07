@@ -151,6 +151,8 @@ CATEGORIES: dict[str, tuple[str, str, str, str]] = {
         "playing Strinova, updated every 10 minutes.\n\n"
         "**Member count** — a channel name that shows how many members the server has, "
         "updated every 10 minutes.\n\n"
+        "**Welcome & goodbye cards** — I post a card when someone joins the server, "
+        "and a black & white one when someone leaves.\n\n"
         "**Custom roles** — in the roles channel, press *Get my role* and I'll DM you "
         "to make your own colored role.\n\n"
         "**Website** — the PC's live stats are shown on https://esefos.netlify.app"
