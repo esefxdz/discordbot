@@ -149,6 +149,8 @@ CATEGORIES: dict[str, tuple[str, str, str, str]] = {
         "with a timestamp that shows in everyone's own time zone.\n\n"
         "**Strinova player count** — a channel name that shows how many people are "
         "playing Strinova, updated every 10 minutes.\n\n"
+        "**Member count** — a channel name that shows how many members the server has, "
+        "updated every 10 minutes.\n\n"
         "**Custom roles** — in the roles channel, press *Get my role* and I'll DM you "
         "to make your own colored role.\n\n"
         "**Website** — the PC's live stats are shown on https://esefos.netlify.app"

@@ -12,14 +12,18 @@ class StatChannel(commands.Cog):
 
         self.channel_id     = _parse_id('STRINOVA_STAT_CHANNEL_ID')
         self.channel_id_mao = _parse_id('STRINOVA_STAT_CHANNEL_ID_MAO')
+        self.member_channel_id = _parse_id('MEMBER_COUNT_CHANNEL_ID')
 
         self.update_stat.start()
         if self.channel_id_mao is not None:
             self.update_stat_mao.start()
+        if self.member_channel_id is not None:
+            self.update_members.start()
 
     def cog_unload(self):
         self.update_stat.cancel()
         self.update_stat_mao.cancel()
+        self.update_members.cancel()
 
     async def _fetch_and_update(self, channel_id):
         try:
@@ -41,12 +45,25 @@ class StatChannel(commands.Cog):
     async def update_stat_mao(self):
         await self._fetch_and_update(self.channel_id_mao)
 
+    @tasks.loop(minutes=10)
+    async def update_members(self):
+        try:
+            channel = self.bot.get_channel(self.member_channel_id)
+            if channel:
+                await channel.edit(name=f'Member Count: {channel.guild.member_count:,}')
+        except Exception as e:
+            print(f'member count update failed (channel {self.member_channel_id}): {e}')
+
     @update_stat.before_loop
     async def before_update_stat(self):
         await self.bot.wait_until_ready()
 
     @update_stat_mao.before_loop
     async def before_update_stat_mao(self):
+        await self.bot.wait_until_ready()
+
+    @update_members.before_loop
+    async def before_update_members(self):
         await self.bot.wait_until_ready()
 
 async def setup(bot):
