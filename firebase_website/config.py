@@ -8,7 +8,6 @@ from google.cloud.firestore import AsyncClient
 log = logging.getLogger(__name__)
 
 PROJECT_ID = "esef-514bf"
-SYSINFO_INTERVAL = 10  # seconds between pushes
 
 _db: AsyncClient | None = None
 
