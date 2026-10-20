@@ -31,6 +31,9 @@ class StatChannel(commands.Cog):
                 async with session.get('https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=1282270') as r:
                     data = await r.json()
                     count = data['response']['player_count']
+            if not isinstance(count, int) or count <= 0:
+                print(f'stat channel update skipped (channel {channel_id}): steam returned {count!r}')
+                return
             channel = self.bot.get_channel(channel_id)
             if channel:
                 await channel.edit(name=f'Strinova Players From Steam: {count:,}')

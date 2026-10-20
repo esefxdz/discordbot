@@ -117,6 +117,9 @@ class SysInfo(commands.Cog):
             async with session.get('https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=1282270') as r:
                 data = await r.json()
                 count = data['response']['player_count']
+                if not isinstance(count, int) or count <= 0:
+                    await ctx.reply('🎮 Strinova — Steam is not returning a player count right now, try again in a bit')
+                    return
                 await ctx.reply(f'🎮 Strinova — {count:,} players online right now')
 
 
