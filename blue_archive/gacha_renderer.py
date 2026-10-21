@@ -6,6 +6,9 @@ import functools
 import io
 import logging
 import math
+import os
+import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -21,7 +24,9 @@ from .constants import (
     HEADER_Y, FOOTER_Y,
     STAR_BANNER_H, NAME_STRIP_H, PORTRAIT_TOP, PORTRAIT_H,
     RARITY_COLOR, RARITY_BG,
+    BUST_HEIGHT_FRAC, BUST_HEAD_FRAC,
     BG_PATH, SPARK_TARGET,
+    PORTRAIT_CACHE_DIR, WIKI_RETRY_HOURS,
     FONT_PATHS,
 )
 
@@ -47,20 +52,87 @@ FOOTER_FONT = _get_font(18, bold=False)
 
 # ── Image fetching ─────────────────────────────────────────────────────────
 
+def _bust_crop(img: Image.Image) -> Image.Image:
+    """Crop a full-body sprite to head-and-shoulders so it fills the card.
+
+    Anchored on the alpha box top (Kid variants sit lower in the frame) and on
+    the alpha-weighted centre of the top slice, so thin props like rifles and
+    parasols barely pull the crop off the face.
+    """
+    alpha = img.getchannel("A")
+    box = alpha.getbbox()
+    if not box:
+        return img
+    left, top, right, bottom = box
+    fig_h = bottom - top
+    crop_h = min(img.height - top, max(1, int(fig_h * BUST_HEIGHT_FRAC)))
+    head = alpha.crop((left, top, right, top + max(1, int(fig_h * BUST_HEAD_FRAC))))
+    cols = head.resize((head.width, 1), Image.BOX).tobytes()
+    weight = sum(cols)
+    offset = sum(x * c for x, c in enumerate(cols)) // weight if weight else head.width // 2
+    cx = left + offset
+    crop_w = min(img.width, max(1, round(crop_h * (CARD_W - 12) / PORTRAIT_H)))
+    x0 = max(0, min(img.width - crop_w, cx - crop_w // 2))
+    return img.crop((x0, top, x0 + crop_w, top + crop_h))
+
+
+def _cached_portrait(student: dict) -> Optional[Image.Image]:
+    """Load a cached portrait, or None when one should be (re)fetched."""
+    try:
+        wiki = PORTRAIT_CACHE_DIR / f"{student['Id']}.wiki.png"
+        if wiki.exists():
+            return Image.open(wiki).convert("RGBA")
+        alt = PORTRAIT_CACHE_DIR / f"{student['Id']}.alt.png"
+        if alt.exists() and time.time() - alt.stat().st_mtime < WIKI_RETRY_HOURS * 3600:
+            return Image.open(alt).convert("RGBA")
+    except Exception:  # unreadable file would otherwise blank the card forever
+        log.warning("bad cached portrait for %s, refetching", student["Name"])
+    return None
+
+
+def _cache_portrait(student: dict, img: Image.Image, from_wiki: bool) -> None:
+    """Keep fetched art on disk so an upstream outage can't change the cards."""
+    try:
+        PORTRAIT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        kind = "wiki" if from_wiki else "alt"
+        path = PORTRAIT_CACHE_DIR / f"{student['Id']}.{kind}.png"
+        tmp = path.parent / f"{path.name}.{uuid.uuid4().hex[:8]}.tmp"
+        img.save(tmp, format="PNG")  # the .tmp name hides the format from Pillow
+        os.replace(tmp, path)  # a restart mid-save must not leave half a card
+        if from_wiki:  # wiki art wins from here on, drop the stand-in
+            (PORTRAIT_CACHE_DIR / f"{student['Id']}.alt.png").unlink(missing_ok=True)
+    except Exception:
+        log.warning("could not cache portrait for %s", student["Name"], exc_info=True)
+
+
 async def _fetch_portrait(session: aiohttp.ClientSession, student: dict) -> Optional[Image.Image]:
-    """Download a student's portrait (wiki bust art first, full sprite fallback)."""
-    for url in (db.cdn_portrait(student), db.cdn_sprite(student)):
+    """A student's portrait: disk cache, else wiki art, collection art, sprite."""
+    cached = await asyncio.to_thread(_cached_portrait, student)
+    if cached is not None:
+        return cached
+
+    sources = (
+        (db.cdn_portrait(student), "wiki"),
+        (db.cdn_collection(student), "collection"),
+        (db.cdn_sprite(student), "sprite"),
+    )
+    for url, kind in sources:
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                if resp.status == 200:
-                    data = await resp.read()
-                    img = Image.open(io.BytesIO(data)).convert("RGBA")
-                    # Full-body art is tall; crop the upper portion to fit the card.
-                    p_w, p_h = img.size
-                    crop_h = int(p_w * 1.20)
-                    if crop_h < p_h:
-                        img = img.crop((0, 0, p_w, crop_h))
-                    return img
+                if resp.status != 200:
+                    continue
+                data = await resp.read()
+            img = Image.open(io.BytesIO(data)).convert("RGBA")
+            if kind == "sprite":
+                img = _bust_crop(img)
+            elif kind == "wiki":
+                # Wiki art is a face shot; only trim it if it is very tall.
+                p_w, p_h = img.size
+                crop_h = int(p_w * 1.20)
+                if crop_h < p_h:
+                    img = img.crop((0, 0, p_w, crop_h))
+            await asyncio.to_thread(_cache_portrait, student, img, kind == "wiki")
+            return img
         except Exception:
             log.debug("portrait fetch failed via %s", url)
 

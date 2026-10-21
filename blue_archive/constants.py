@@ -8,6 +8,7 @@ _PKG_DIR = Path(__file__).parent
 _DATA_DIR = _PKG_DIR.parent / "data"
 BUNDLED_DB = _PKG_DIR / "ba_students.json"
 BANNER_FILE = _DATA_DIR / "ba_banner_state.json"
+PORTRAIT_CACHE_DIR = _DATA_DIR / "portraits"
 ASSETS_DIR = _PKG_DIR / "assets"
 BG_PATH = ASSETS_DIR / "gacha_bg.png"
 GACHA_ANIM_PATH = ASSETS_DIR / "Arona_Blue_Gacha_Animation.gif"
@@ -17,6 +18,9 @@ GACHA_ANIM_DURATION = 3.5  # 195 frames × 100 ms (used to be 19.5 will be chang
 BANNER_API = "https://api.ennead.cc/buruaka/banner"
 CHARACTER_API = "https://api.ennead.cc/buruaka/character"
 PORTRAIT_CDN = "https://schaledb.com/images"
+# Wiki art is the nicest but its host goes down for days at a time.  Once a
+# student is cached from a lesser source, re-check the wiki this often.
+WIKI_RETRY_HOURS = 24
 WIKI_PORTRAIT_BASE = "https://bluearchive.wiki/wiki/Special:FilePath/"
 WIKI_VARIANT_MAP: dict[str, str] = {
     "Bunny": "Bunny Girl",
@@ -80,6 +84,10 @@ STAR_BANNER_H = 36
 NAME_STRIP_H = 42
 PORTRAIT_TOP = STAR_BANNER_H + 4
 PORTRAIT_H = CARD_H - PORTRAIT_TOP - NAME_STRIP_H - 4
+# Fraction of a full-body sprite kept when cropping it to a bust, and the
+# fraction of it searched to locate the head horizontally.
+BUST_HEIGHT_FRAC = 0.45
+BUST_HEAD_FRAC = 0.25
 
 # ── Inventory display ───────────────────────────────────────────────────────
 PAGE_SIZE = 10

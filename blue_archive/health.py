@@ -17,7 +17,7 @@ from PIL import Image
 from . import db as gacha_db
 from .data import db, fetch_banners, banner_unavailable_reason
 from .gacha_renderer import render_pull
-from .constants import CHARACTER_API, BG_PATH, GACHA_ANIM_PATH, FONT_PATHS
+from .constants import CHARACTER_API, BG_PATH, GACHA_ANIM_PATH, FONT_PATHS, PORTRAIT_CACHE_DIR
 
 OK, WARN, FAIL, INFO = "✅", "⚠️", "❌", "ℹ️"
 REFRESH_INTERVAL = 6 * 3600  # must match BlueArchiveGacha._periodic_refresh
@@ -121,7 +121,7 @@ def _check_rateups(live_banners: list[dict]) -> tuple[list[Row], list[dict]]:
 
 
 async def _check_portraits(students: list[dict]) -> list[Row]:
-    """Probe wiki art and the sprite fallback separately for rate-up students."""
+    """Probe each art source separately for rate-up students."""
     s = "Portraits"
     if not students:
         return [(INFO, s, "No live rate-up students to probe")]
@@ -136,16 +136,25 @@ async def _check_portraits(students: list[dict]) -> list[Row]:
     timeout = aiohttp.ClientTimeout(total=30, connect=5)  # same as render_pull
     async with aiohttp.ClientSession(timeout=timeout) as session:
         results = await asyncio.gather(*(
-            asyncio.gather(_probe_image(session, db.cdn_portrait(st)), _probe_image(session, db.cdn_sprite(st)))
+            asyncio.gather(
+                _probe_image(session, db.cdn_portrait(st)),
+                _probe_image(session, db.cdn_collection(st)),
+                _probe_image(session, db.cdn_sprite(st)),
+            )
             for st in sample
         ))
-    for st, (wiki, sprite) in zip(sample, results):
+    for st, (wiki, collection, sprite) in zip(sample, results):
         if wiki is None:
             rows.append((OK, s, f"{st['Name']}: wiki art OK"))
+        elif collection is None:
+            rows.append((WARN, s, f"{st['Name']}: wiki art failed ({wiki}), collection art OK"))
         elif sprite is None:
-            rows.append((WARN, s, f"{st['Name']}: wiki art failed ({wiki}), sprite fallback OK"))
+            rows.append((WARN, s, f"{st['Name']}: wiki+collection failed, sprite fallback OK"))
         else:
-            rows.append((FAIL, s, f"{st['Name']}: no art (wiki {wiki}, sprite {sprite}) — card renders blank"))
+            rows.append((FAIL, s, f"{st['Name']}: no art (wiki {wiki}, collection {collection}, "
+                                  f"sprite {sprite}) — card renders blank"))
+    cached = len(list(PORTRAIT_CACHE_DIR.glob("*.png"))) if PORTRAIT_CACHE_DIR.exists() else 0
+    rows.append((INFO, s, f"{cached} portraits cached on disk"))
     return rows
 
 

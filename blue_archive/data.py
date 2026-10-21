@@ -355,8 +355,12 @@ class StudentDB:
             name = f"{base.strip()} ({variant})"
         return WIKI_PORTRAIT_BASE + quote(f"Portrait {name}.png", safe="")
 
+    def cdn_collection(self, student: dict) -> str:
+        """SchaleDB CDN collection art URL (in-game card portrait, keyed by ID)."""
+        return f"{PORTRAIT_CDN}/student/collection/{student['Id']}.webp"
+
     def cdn_sprite(self, student: dict) -> str:
-        """SchaleDB CDN full-body sprite URL (fallback, keyed by ID)."""
+        """SchaleDB CDN full-body sprite URL (last resort, keyed by ID)."""
         return f"{PORTRAIT_CDN}/student/portrait/{student['Id']}.webp"
 
 
