@@ -132,10 +132,7 @@ class TimestampModal(discord.ui.Modal, title="Timestamp Converter"):
 
         # --- output single Long Date+Time format ---
         lines = [
-            f"**{local_dt.strftime('%d %B at %H:%M')}**",
-            f"`<t:{unix_ts}:F>`　← Long Date+Time",
-            "",
-            "*Times display in each viewer's local timezone.*",
+            f"<t:{unix_ts}:F>",
         ]
 
         await interaction.response.send_message(
