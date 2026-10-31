@@ -315,6 +315,14 @@ class TelegramForwarder:
 
         if document:
             data, filename = await self._download(document.file_id)
+            # a gif sent as a file never reaches the animation branch, so it
+            # went to discord at full size — same ladder, same .gif out
+            is_gif = (doc_mime == "image/gif"
+                      or filename.lower().endswith(".gif"))
+            if is_gif and len(data) > media.MAX_CONVERTED_BYTES:
+                smaller = await media.to_gif(data, ".gif")
+                if smaller:
+                    return [(filename, smaller)], ""
             return [(filename, data)], ""
 
         if message.voice:
