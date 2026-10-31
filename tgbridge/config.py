@@ -117,3 +117,18 @@ def load_routes() -> list[Route]:
 
 def avatar_channel_id() -> int | None:
     return _int_or_none(os.getenv("AVATAR_CACHE_CHANNEL_ID"))
+
+
+def local_api() -> dict:
+    """-> bot kwargs for a self-hosted bot api server, {} for the cloud one.
+
+    A local server lifts telegram's 20 MB getFile cap and hands back a path on
+    disk instead of a url, which ptb reads for itself once local_mode is on.
+    Both directions read this or only one of them migrates.
+    """
+    base = os.getenv("TELEGRAM_API_BASE_URL", "").strip().rstrip("/")
+    if not base:
+        return {}
+    return {"base_url": f"{base}/bot",
+            "base_file_url": f"{base}/file/bot",
+            "local_mode": True}

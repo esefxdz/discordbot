@@ -4,8 +4,10 @@
 import asyncio
 import io
 import logging
+import os
 import time
 
+from telegram.error import BadRequest, NetworkError
 from telegram.ext import Application, MessageHandler, filters
 
 from . import config, entities, media, store
@@ -18,7 +20,22 @@ log = logging.getLogger(__name__)
 ALBUM_DEBOUNCE = 1.5
 ALBUM_MAX_FILES = 10
 DOWNLOAD_TIMEOUT = 90.0
+# ptb defaults read_timeout to 5s, which a slow transfer trips long before
+# the ceilings above ever matter. kept under 24s so pool+connect+read stays
+# inside the 30s get_file ceiling and ptb stays the one reporting the failure
+READ_TIMEOUT = 20.0
+# a local api server lifts telegram's 20 MB cap, but _download still buffers
+# the whole file in memory — past this, post the note instead of eating the box
+MAX_INGEST_BYTES = 200 * 1024 * 1024
 REPLY_SNIPPET = 120
+
+
+class TooLarge(Exception):
+    """An attachment we will not pull into memory."""
+
+    def __init__(self, megabytes: float | None = None):
+        super().__init__("attachment too large to bridge")
+        self.megabytes = megabytes
 
 
 class TelegramForwarder:
@@ -67,7 +84,10 @@ class TelegramForwarder:
             if removed:
                 log.info("pruned %d expired message mappings", removed)
 
-            self._app = Application.builder().token(self.token).build()
+            builder = Application.builder().token(self.token)
+            for name, value in config.local_api().items():
+                builder = getattr(builder, name)(value)
+            self._app = builder.build()
             self._app.add_handler(MessageHandler(filters.ALL, self._on_update))
             self._app.add_error_handler(self._on_error)
 
@@ -125,14 +145,45 @@ class TelegramForwarder:
     # ── downloads ───────────────────────────────────────────────────────────
 
     async def _download(self, file_id: str):
-        """-> (bytes, filename). Raises on failure."""
-        tg_file = await asyncio.wait_for(
-            self._app.bot.get_file(file_id), timeout=30.0)
-        buf = io.BytesIO()
-        await asyncio.wait_for(
-            tg_file.download_to_memory(buf), timeout=DOWNLOAD_TIMEOUT)
-        path = tg_file.file_path or ""
-        return buf.getvalue(), (path.split("/")[-1] or "file")
+        """-> (bytes, filename). Raises on failure.
+
+        Retried once: a dropped read mid-transfer is the one failure here
+        nothing upstream recovers from. BadRequest subclasses NetworkError,
+        so it has to be ruled out first or a rejection gets re-sent.
+        """
+        for attempt in (1, 2):
+            try:
+                tg_file = await asyncio.wait_for(
+                    self._app.bot.get_file(file_id, read_timeout=READ_TIMEOUT),
+                    timeout=30.0)
+                size = tg_file.file_size or 0
+                if not size and os.path.isabs(tg_file.file_path or ""):
+                    # local mode hands back a path, not a url — if the
+                    # server left file_size out, ask the filesystem
+                    try:
+                        size = os.path.getsize(tg_file.file_path)
+                    except OSError:
+                        size = 0
+                if size > MAX_INGEST_BYTES:
+                    raise TooLarge(size / 1048576)
+                buf = io.BytesIO()
+                await asyncio.wait_for(
+                    tg_file.download_to_memory(buf, read_timeout=READ_TIMEOUT),
+                    timeout=DOWNLOAD_TIMEOUT)
+            except BadRequest as exc:
+                # only the cloud api refuses outright; a local server will
+                # hand the file over and MAX_INGEST_BYTES becomes the limit
+                if "too big" in str(exc).lower():
+                    raise TooLarge() from exc
+                raise
+            except NetworkError as exc:
+                if attempt == 2:
+                    raise
+                log.info("download retry after %s: %s",
+                         type(exc).__name__, exc)
+                continue
+            path = tg_file.file_path or ""
+            return buf.getvalue(), (path.split("/")[-1] or "file")
 
     # ── context lines ───────────────────────────────────────────────────────
 
@@ -347,8 +398,16 @@ class TelegramForwarder:
         for message in messages:
             try:
                 got, note = await self._render_media(message)
+            except TooLarge as exc:
+                what = _describe_media(message) or "attachment"
+                size = f" — {exc.megabytes:.0f} MB" if exc.megabytes else ""
+                log.info("%s in message %s too large to bridge%s",
+                         what, message.message_id, size)
+                got, note = [], f"*(attachment too large to bridge{size})*"
             except Exception as exc:
-                log.warning("media render failed: %s", exc)
+                log.warning("media render failed for %s in message %s: %s: %s",
+                            _describe_media(message) or "attachment",
+                            message.message_id, type(exc).__name__, exc)
                 got, note = [], "*(attachment could not be fetched)*"
             files.extend(got)
             if note:

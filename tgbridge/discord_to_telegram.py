@@ -15,7 +15,7 @@ from telegram import (Bot, InputMediaAudio, InputMediaDocument,
                       InputMediaPhoto, InputMediaVideo, ReplyParameters)
 from telegram.error import TelegramError
 
-from . import entities, store
+from . import config, entities, store
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class DiscordToTelegramForwarder(commands.Cog):
 
     def __init__(self, bot: commands.Bot, tg_token: str, routes=None):
         self.bot = bot
-        self._tg_bot = Bot(token=tg_token)
+        self._tg_bot = Bot(token=tg_token, **config.local_api())
         # discord_channel_id -> telegram_chat_id
         self.routes: dict[int, int] = {}
         for route in routes or []:
